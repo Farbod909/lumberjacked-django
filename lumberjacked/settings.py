@@ -20,7 +20,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -192,12 +192,12 @@ REST_AUTH = {
     'REGISTER_SERIALIZER': 'authn.serializers.CustomRegisterSerializer',
 }
 
-# EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
-# EMAIL_HOST = os.getenv("EMAIL_HOST")
-# EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
-# EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS").lower() in ['true', '1', 'y', 'yes']
-# EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-# EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS").lower() in ['true', '1', 'y', 'yes']
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 
 SITE_ID = 1
