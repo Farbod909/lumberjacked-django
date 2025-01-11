@@ -49,7 +49,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run unit tests
-        run: python manage.py test
+        run: python manage.py test --keepdb --noinput
 
       - name: Migrate schema changes
         run: python manage.py migrate
