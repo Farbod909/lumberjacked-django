@@ -71,9 +71,9 @@ jobs:
 
       - name: Build and Push Container
         run: |-
-          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:${{ github.sha }}" \
-                       -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:latest" \
-                       -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:dev" ./
+          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:${{ github.sha }}" ./
+          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:latest" ./
+          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:dev" ./
           docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:${{ github.sha }}"
 
       - name: Deploy to Cloud Run
