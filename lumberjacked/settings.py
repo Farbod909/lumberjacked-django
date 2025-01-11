@@ -199,5 +199,8 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS").lower() in ['true', '1', 'y', 'yes']
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://lumberjacked-dev-2-1029906100530.us-west2.run.app',
+]
 
 SITE_ID = 1
