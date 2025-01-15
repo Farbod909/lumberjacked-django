@@ -73,8 +73,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:${{ github.sha }},
-            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:latest, 
+            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:${{ github.sha }}
+            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:latest
             ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_SERVICE }}/${{ env.GAR_SERVICE }}:dev
 
       - name: Deploy to Cloud Run
