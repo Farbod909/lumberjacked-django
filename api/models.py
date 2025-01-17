@@ -40,3 +40,6 @@ class MovementLog(models.Model):
     loads = ArrayField(models.FloatField(), default=list) # Number of reps in each set.
     notes = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return "Log of movement %s at %s" % (self.movement, self.timestamp.date)
