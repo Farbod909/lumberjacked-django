@@ -37,6 +37,7 @@ INSTALLED_APPS = [
 
     # First Party Apps
     'authn.apps.AuthnConfig',
+    'api.apps.ApiConfig',
 
     # Third Party Apps
     'allauth',
