@@ -20,7 +20,7 @@ class Movement(models.Model):
     recommended_rest_time = models.PositiveSmallIntegerField(null=True)
 
     def __str__(self):
-        return "%s - User %s" % (self.name, self.author)
+        return "Movement (name: %s, user: %s)" % (self.name, self.author)
     
 class Workout(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
@@ -30,7 +30,7 @@ class Workout(models.Model):
     end_timestamp = models.DateTimeField(null=True)
 
     def __str__(self):
-        return "Workout on %s for user %s" % (self.start_timestamp.date, self.user)
+        return "Workout (date: %s, user: %s)" % (self.start_timestamp.date(), self.user)
     
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
@@ -42,4 +42,4 @@ class MovementLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return "Log of movement %s at %s" % (self.movement, self.timestamp.date)
+        return "Movement log (movement: %s, date: %s)" % (self.movement, self.timestamp.date())
