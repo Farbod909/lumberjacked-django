@@ -35,7 +35,7 @@ class Workout(models.Model):
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     movement = models.ForeignKey(Movement, null=True, on_delete=models.CASCADE)
-    workout = models.ForeignKey(Workout, null=True, on_delete=models.SET_NULL)
+    workout = models.ForeignKey(Workout, null=True, on_delete=models.SET_NULL, related_name='movement_logs')
     reps = ArrayField(models.PositiveSmallIntegerField(), default=list) # Number of reps in each set.
     loads = ArrayField(models.FloatField(), default=list) # Number of reps in each set.
     notes = models.TextField(blank=True)
