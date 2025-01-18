@@ -13,6 +13,7 @@ class MovementSerializer(serializers.ModelSerializer):
             'recommended_rep_range', 'recommended_rpe', 
             'recommended_rest_time',
         ]
+        read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']
 
 class MovementLogSerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,6 +22,7 @@ class MovementLogSerializer(serializers.ModelSerializer):
             'id', 'movement', 'workout',
             'reps', 'loads', 'notes', 'timestamp',
         ]
+        read_only_fields = ['id', 'timestamp']
 
 class WorkoutSerializer(serializers.ModelSerializer):
     movement_logs = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
@@ -30,4 +32,4 @@ class WorkoutSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'movements', 'movement_logs',
             'start_timestamp', 'end_timestamp']
-        read_only_fields = ['user', 'end_timestamp']
+        read_only_fields = ['id', 'user', 'start_timestamp', 'end_timestamp']
