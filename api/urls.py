@@ -5,12 +5,12 @@ from . import views
 
 
 urlpatterns = [
-    path('movements/', views.MovementList.as_view()),
-    path('movements/<int:pk>/', views.MovementDetail.as_view()),
-    path('movement-logs/', views.MovementLogList.as_view()),
-    path('movement-logs/<int:pk>/', views.MovementLogDetail.as_view()),
-    path('workouts/', views.WorkoutList.as_view()),
-    path('workouts/<int:pk>/', views.WorkoutDetail.as_view()),
+    path('movements/', views.MovementList.as_view(), name='movement-list'),
+    path('movements/<int:id>/', views.MovementDetail.as_view(), name='movement-detail'),
+    path('movement-logs/', views.MovementLogList.as_view(), name='movement-log-list'),
+    path('movement-logs/<int:id>/', views.MovementLogDetail.as_view(), name='movement-log-detail'),
+    path('workouts/', views.WorkoutList.as_view(), name='workout-list'),
+    path('workouts/<int:id>/', views.WorkoutDetail.as_view(), name='workout-detail'),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
