@@ -22,7 +22,25 @@ class MovementLogSerializer(serializers.ModelSerializer):
             'id', 'movement', 'workout',
             'reps', 'loads', 'notes', 'timestamp',
         ]
-        read_only_fields = ['id', 'timestamp']
+        read_only_fields = ['id']
+
+    def validate(self, data):
+        # Ensure reps and loads have same length.
+        reps = []
+        loads = []
+        if self.instance:
+            if self.instance.reps:
+                reps = self.instance.reps
+            if self.instance.loads:
+                loads = self.instance.loads
+        if 'reps' in data:
+            reps = data['reps']
+        if 'loads' in data:
+            loads = data['loads']
+
+        if len(reps) != len(loads):
+            raise serializers.ValidationError("reps and loads must have the same length.")
+        return data
 
 class WorkoutSerializer(serializers.ModelSerializer):
     movement_logs = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
