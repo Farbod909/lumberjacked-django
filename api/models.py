@@ -43,4 +43,4 @@ class MovementLog(models.Model):
     timestamp = models.DateTimeField(blank=True, default=timezone.now)
 
     def __str__(self):
-        return "Movement log (movement: %s, date: %s)" % (self.movement, self.timestamp.date())
+        return "MovementLog (movement: %s, date: %s)" % (self.movement, self.timestamp.date())
