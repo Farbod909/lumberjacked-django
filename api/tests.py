@@ -345,13 +345,9 @@ class WorkoutTests(APITestCase):
         self.assertEqual(MovementLog.objects.count(), 0)
 
 
-    @mock.patch('api.views.datetime')
-    def test_end_workout(self, mock_datetime):
-        # We have to mock the whole datetime class because it is immutable.
-        mock_datetime.now.return_value = datetime.datetime(2022, 3, 12, 0, 0, 0, tzinfo=pytz.utc)
-        # Ensure other functionality in the datetime class works.
-        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+    @mock.patch('django.utils.timezone.now',
+                mock.Mock(return_value=datetime.datetime(2022, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
+    def test_end_workout(self):
         response = self.client.get(self.end_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(parser.isoparse(response.data['end_timestamp']), 
@@ -369,13 +365,29 @@ class WorkoutTests(APITestCase):
         self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
 
         MovementLog.objects.create(
-            movement=self.movement1, workout=self.workout, reps=[5, 5, 5], loads=[25, 25, 25])
+            movement=self.movement1,
+            workout=self.workout, 
+            reps=[5, 5, 5], 
+            loads=[25, 25, 25], 
+            timestamp=timezone.now() - datetime.timedelta(seconds=15))
         MovementLog.objects.create(
-            movement=self.movement2, workout=self.workout, reps=[8, 8, 8], loads=[130, 130, 130])
+            movement=self.movement2,
+            workout=self.workout,
+            reps=[8, 8, 8],
+            loads=[120, 120, 120],
+            timestamp=timezone.now() - datetime.timedelta(seconds=10))
         MovementLog.objects.create(
-            movement=self.movement2, workout=self.current_workout, reps=[10, 10, 10], loads=[130, 130, 130])
+            movement=self.movement2,
+            workout=self.current_workout,
+            reps=[10, 10, 10],
+            loads=[130, 130, 130],
+            timestamp=timezone.now() - datetime.timedelta(seconds=5))
         MovementLog.objects.create(
-            movement=self.movement3, workout=self.current_workout, reps=[5, 5, 5], loads=[200, 200, 200])
+            movement=self.movement3,
+            workout=self.current_workout,
+            reps=[5, 5, 5],
+            loads=[200, 200, 200],
+            timestamp=timezone.now())
         
         response = self.client.get(self.current_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -394,11 +406,23 @@ class WorkoutTests(APITestCase):
         self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
 
         MovementLog.objects.create(
-            movement=self.movement1, workout=self.workout, reps=[5, 5, 5], loads=[25, 25, 25])
+            movement=self.movement1,
+            workout=self.workout,
+            reps=[5, 5, 5],
+            loads=[25, 25, 25],
+            timestamp=timezone.now() - datetime.timedelta(seconds=10))
         MovementLog.objects.create(
-            movement=self.movement2, workout=self.workout, reps=[8, 8, 8], loads=[130, 130, 130])
+            movement=self.movement2,
+            workout=self.workout,
+            reps=[8, 8, 8],
+            loads=[130, 130, 130],
+            timestamp=timezone.now() - datetime.timedelta(seconds=5))
         MovementLog.objects.create(
-            movement=self.movement3, workout=self.current_workout, reps=[5, 5, 5], loads=[200, 200, 200])
+            movement=self.movement3,
+            workout=self.current_workout,
+            reps=[5, 5, 5],
+            loads=[200, 200, 200],
+            timestamp=timezone.now())
         
         response = self.client.get(self.current_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

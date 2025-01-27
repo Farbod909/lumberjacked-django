@@ -126,7 +126,7 @@ class WorkoutEnd(APIView):
 
     def get(self, request, id, format=None):
         workout = self.get_object(id)
-        workout.end_timestamp = datetime.now()
+        workout.end_timestamp = timezone.now()
         workout.save()
         serializer = WorkoutSerializer(workout)
         return Response(serializer.data)
