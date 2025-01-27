@@ -202,6 +202,7 @@ class WorkoutTests(APITestCase):
         cls.create_url_with_template = f"{reverse('workout-list')}?{urlencode({'template': cls.workout.id})}"
         cls.detail_url = reverse('workout-detail', kwargs={'id': cls.workout.id})
         cls.end_url = reverse('workout-end', kwargs={'id': cls.workout.id})
+        cls.current_url = reverse('workout-current')
 
     def setUp(self):
         self.client.login(email=self.user_email, password=self.user_password)
@@ -359,6 +360,58 @@ class WorkoutTests(APITestCase):
     def test_end_nonexistent_workout_fails(self):
         url = reverse('workout-end', kwargs={'id': 123})
         response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_current_workout(self):
+        self.client.get(self.end_url) # end existing workout
+
+        self.movement3 = Movement.objects.create(name="Pullup", category="Back", author=self.user)
+        self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
+
+        MovementLog.objects.create(
+            movement=self.movement1, workout=self.workout, reps=[5, 5, 5], loads=[25, 25, 25])
+        MovementLog.objects.create(
+            movement=self.movement2, workout=self.workout, reps=[8, 8, 8], loads=[130, 130, 130])
+        MovementLog.objects.create(
+            movement=self.movement2, workout=self.current_workout, reps=[10, 10, 10], loads=[130, 130, 130])
+        MovementLog.objects.create(
+            movement=self.movement3, workout=self.current_workout, reps=[5, 5, 5], loads=[200, 200, 200])
+        
+        response = self.client.get(self.current_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['movements_details']), 2)
+
+        self.assertTrue(any(details['name'] == "Pullup" for details in response.data['movements_details']))
+        self.assertTrue(any(details['name'] == "Bench Press" for details in response.data['movements_details']))
+
+        self.assertTrue(all(details['latest_log']['for_current_workout'] == True for details in response.data['movements_details']))
+
+
+    def test_current_workout_half_complete(self):
+        self.client.get(self.end_url) # end existing workout
+
+        self.movement3 = Movement.objects.create(name="Pullup", category="Back", author=self.user)
+        self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
+
+        MovementLog.objects.create(
+            movement=self.movement1, workout=self.workout, reps=[5, 5, 5], loads=[25, 25, 25])
+        MovementLog.objects.create(
+            movement=self.movement2, workout=self.workout, reps=[8, 8, 8], loads=[130, 130, 130])
+        MovementLog.objects.create(
+            movement=self.movement3, workout=self.current_workout, reps=[5, 5, 5], loads=[200, 200, 200])
+        
+        response = self.client.get(self.current_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['movements_details']), 2)
+
+        self.assertTrue(any(details['name'] == "Pullup" for details in response.data['movements_details']))
+        self.assertTrue(any(details['name'] == "Bench Press" for details in response.data['movements_details']))
+
+        self.assertTrue(any(details['latest_log']['for_current_workout'] == False for details in response.data['movements_details']))
+
+    def test_current_workout_nonexistent_fails(self):
+        self.client.get(self.end_url) # end existing workout
+        response = self.client.get(self.current_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 class MovementLogTests(APITestCase):

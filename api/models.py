@@ -28,14 +28,14 @@ class Workout(models.Model):
     user = models.ForeignKey(User, null=True, on_delete=models.CASCADE)
     movements = ArrayField(models.PositiveBigIntegerField(), default=list)
     start_timestamp = models.DateTimeField(auto_now_add=True)
-    end_timestamp = models.DateTimeField(null=True)
+    end_timestamp = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return "Workout (date: %s, user: %s)" % (self.start_timestamp.date(), self.user)
     
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
-    movement = models.ForeignKey(Movement, on_delete=models.CASCADE)
+    movement = models.ForeignKey(Movement, on_delete=models.CASCADE, related_name='movement_logs')
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name='movement_logs')
     reps = ArrayField(models.PositiveSmallIntegerField(), default=list) # Number of reps in each set.
     loads = ArrayField(models.FloatField(), default=list) # Number of reps in each set.

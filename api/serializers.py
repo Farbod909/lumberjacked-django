@@ -51,3 +51,42 @@ class WorkoutSerializer(serializers.ModelSerializer):
             'id', 'user', 'movements', 'movement_logs',
             'start_timestamp', 'end_timestamp']
         read_only_fields = ['id', 'user', 'start_timestamp', 'end_timestamp']
+
+class LatestMovementLogSerializer(serializers.ModelSerializer):
+    for_current_workout = serializers.BooleanField()
+
+    class Meta:
+        model = MovementLog
+        fields = [
+            'id', 'reps', 'loads', 'notes', 'timestamp', 'for_current_workout'
+        ]
+        read_only_fields = fields
+
+class MovementWithLatestLogSerializer(serializers.ModelSerializer):
+    latest_log = LatestMovementLogSerializer()
+    
+    class Meta:
+        model = Movement
+        fields = [
+            'id', 'author', 'name', 'category', 'notes',
+            'created_timestamp', 'updated_timestamp',
+            'recommended_warmup_sets', 'recommended_working_sets',
+            'recommended_rep_range', 'recommended_rpe', 
+            'recommended_rest_time', 'latest_log',
+        ]
+        read_only_fields = fields
+
+class ExpandedWorkoutSerializer(serializers.ModelSerializer):
+    movements_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Workout
+        fields = [
+            'id', 'user', 'movements_details',
+            'start_timestamp', 'end_timestamp']
+        read_only_fields = fields
+
+    def get_movements_details(self, obj):
+        # Retrieve movements from the context
+        movements_details = self.context.get('movements_details', [])
+        return MovementWithLatestLogSerializer(movements_details, many=True).data

@@ -1,3 +1,9 @@
+from django.db.models import (
+    BooleanField, Case, JSONField, OuterRef,
+    Subquery, Value, When
+)
+from django.db.models.functions import JSONObject
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from datetime import datetime
 from django.utils import timezone
@@ -9,7 +15,10 @@ from rest_framework.views import APIView
 
 from .models import Movement, MovementLog, Workout
 from .permissions import IsMovementOwner, IsMovementLogOwner, IsWorkoutOwner
-from .serializers import MovementSerializer, MovementLogSerializer, WorkoutSerializer
+from .serializers import (
+    MovementSerializer, MovementLogSerializer, 
+    WorkoutSerializer, ExpandedWorkoutSerializer
+)
 
 class MovementList(generics.ListCreateAPIView):
     serializer_class = MovementSerializer
@@ -121,3 +130,41 @@ class WorkoutEnd(APIView):
         workout.save()
         serializer = WorkoutSerializer(workout)
         return Response(serializer.data)
+    
+class WorkoutCurrent(APIView):
+    # Get the current workout, its movements' details, and each movement's most recent movement log.
+
+    def get(self, request, format=None):
+        workout = (
+            Workout.objects.filter(end_timestamp__isnull=True)
+            .order_by("-start_timestamp")
+            .first()
+        )
+        if workout is None:
+            raise Http404("Current workout does not exist.")
+        
+        movement_ids = workout.movements
+
+        latest_log = MovementLog.objects.filter(movement_id=OuterRef("id")).order_by("-timestamp")
+        movements = Movement.objects.filter(id__in=movement_ids).annotate(
+            latest_log=Subquery(
+                latest_log.annotate(
+                    log=JSONObject(
+                        id="id",
+                        reps="reps",
+                        loads="loads",
+                        notes="notes",
+                        timestamp="timestamp",
+                        for_current_workout=Case(
+                            When(workout=workout.id, then=Value(True)),
+                            default=Value(False),
+                            output_field=BooleanField(),
+                        ),
+                    )
+                ).values("log")[:1],
+                output_field=JSONField(),
+            )
+        )
+
+        workout_serializer = ExpandedWorkoutSerializer(workout, context={'movements_details': movements})
+        return Response(workout_serializer.data)

@@ -12,6 +12,7 @@ urlpatterns = [
     path('workouts/', views.WorkoutList.as_view(), name='workout-list'),
     path('workouts/<int:id>/', views.WorkoutDetail.as_view(), name='workout-detail'),
     path('workouts/<int:id>/end', views.WorkoutEnd.as_view(), name='workout-end'),
+    path('workouts/current/', views.WorkoutCurrent.as_view(), name='workout-current'),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
