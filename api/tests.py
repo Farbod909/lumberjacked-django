@@ -224,8 +224,9 @@ class WorkoutTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['user'], self.user.id)
-        self.assertListEqual(response.data['results'][0]['movements'],
-                            [self.movement1.id, self.movement2.id])
+        self.assertListEqual(
+            [movement['id'] for movement in response.data['results'][0]['movements_details']],
+            [self.movement1.id, self.movement2.id])
         
     def test_list_workouts_alt_user(self):
         self.client.logout()
@@ -248,10 +249,6 @@ class WorkoutTests(APITestCase):
 
         response = self.client.get(self.list_url)
         self.assertEqual(response.data['count'], 2)
-        self.assertTrue(any(
-            item['movement_logs'] == []
-            for item in response.data['results']
-        ))
         self.assertTrue(
             any(parser.isoparse(result['start_timestamp']) == \
                     datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)
@@ -268,8 +265,8 @@ class WorkoutTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.data['count'], 2)
         self.assertTrue(any(
-            item['movements'] == [self.movement1.id]
-            for item in response.data['results']
+            [movement['id'] for movement in workout['movements_details']] == [self.movement1.id]
+            for workout in response.data['results']
         ))
    
     def test_create_workout_with_template(self):
@@ -280,8 +277,8 @@ class WorkoutTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.data['count'], 2)
         self.assertTrue(any(
-            item['movements'] == [self.movement1.id, self.movement2.id]
-            for item in response.data['results']
+            [movement['id'] for movement in workout['movements_details']] == [self.movement1.id, self.movement2.id]
+            for workout in response.data['results']
         ))
 
     def test_create_workout_with_nonexistent_template_fails(self):
@@ -294,7 +291,9 @@ class WorkoutTests(APITestCase):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['user'], self.user.id)
-        self.assertListEqual(response.data['movements'], [self.movement1.id, self.movement2.id])
+        self.assertListEqual(
+            [movement['id'] for movement in response.data['movements_details']],
+            [self.movement1.id, self.movement2.id])
 
     def test_retrieve_workout_alt_user_fails(self):
         self.client.logout()
@@ -320,7 +319,9 @@ class WorkoutTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self.detail_url)
-        self.assertListEqual(response.data['movements'], [self.movement1.id])
+        self.assertListEqual(
+            [movement['id'] for movement in response.data['movements_details']],
+            [self.movement1.id])
 
     def test_delete_workout(self):
         response = self.client.delete(self.detail_url)

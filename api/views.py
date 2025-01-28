@@ -17,7 +17,8 @@ from .models import Movement, MovementLog, Workout
 from .permissions import IsMovementOwner, IsMovementLogOwner, IsWorkoutOwner
 from .serializers import (
     MovementSerializer, MovementLogSerializer, 
-    WorkoutSerializer, ExpandedWorkoutSerializer
+    WorkoutSerializer, WorkoutWithLatestLogsSerializer,
+    WorkoutWithRecordedLogsSerializer
 )
 
 class MovementList(generics.ListCreateAPIView):
@@ -85,7 +86,7 @@ class MovementLogDetail(generics.RetrieveUpdateDestroyAPIView):
         return serializer.save()
 
 class WorkoutList(generics.ListCreateAPIView):
-    serializer_class = WorkoutSerializer
+    serializer_class = WorkoutWithRecordedLogsSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -110,7 +111,7 @@ class WorkoutList(generics.ListCreateAPIView):
 class WorkoutDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Workout.objects.all()
     lookup_field = 'id'
-    serializer_class = WorkoutSerializer
+    serializer_class = WorkoutWithRecordedLogsSerializer
     permission_classes = [IsAuthenticated, IsWorkoutOwner]
 
 class WorkoutEnd(APIView):
@@ -166,5 +167,5 @@ class WorkoutCurrent(APIView):
             )
         )
 
-        workout_serializer = ExpandedWorkoutSerializer(workout, context={'movements_details': movements})
+        workout_serializer = WorkoutWithLatestLogsSerializer(workout, context={'movements_details': movements})
         return Response(workout_serializer.data)

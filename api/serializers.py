@@ -1,3 +1,5 @@
+from django.db.models import JSONField, OuterRef, Subquery
+from django.db.models.functions import JSONObject
 from rest_framework import serializers
 from .models import Movement, MovementLog, Workout
 
@@ -72,6 +74,14 @@ class LatestMovementLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+class RecordedMovementLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MovementLog
+        fields = [
+            'reps', 'loads', 'notes', 'timestamp',
+        ]
+        read_only_fields = fields
+
 class MovementWithLatestLogSerializer(serializers.ModelSerializer):
     latest_log = LatestMovementLogSerializer()
     
@@ -86,7 +96,7 @@ class MovementWithLatestLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-class ExpandedWorkoutSerializer(serializers.ModelSerializer):
+class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
     movements_details = serializers.SerializerMethodField()
 
     class Meta:
@@ -97,6 +107,59 @@ class ExpandedWorkoutSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_movements_details(self, obj):
-        # Retrieve movements from the context
         movements_details = self.context.get('movements_details', [])
         return MovementWithLatestLogSerializer(movements_details, many=True).data
+
+class MovementWithRecordedLogSerializer(serializers.ModelSerializer):
+    recorded_log = RecordedMovementLogSerializer()
+    
+    class Meta:
+        model = Movement
+        fields = [
+            'id', 'author', 'name', 'category', 'notes',
+            'created_timestamp', 'updated_timestamp',
+            'recommended_warmup_sets', 'recommended_working_sets',
+            'recommended_rep_range', 'recommended_rpe', 
+            'recommended_rest_time', 'recorded_log',
+        ]
+        read_only_fields = fields
+
+class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
+    movements_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Workout
+        fields = [
+            'id', 'user', 'movements', 'movements_details',
+            'start_timestamp', 'end_timestamp'
+        ]
+        read_only_fields = [
+            'id', 'user', 'movements_details',
+            'start_timestamp', 'end_timestamp'
+        ]
+
+    def get_movements_details(self, obj):
+        movement_ids = obj.movements
+
+        recorded_log = MovementLog.objects.filter(
+            movement_id=OuterRef("id"),
+            workout_id=obj.id
+        ).annotate(
+            log=JSONObject(
+                reps="reps",
+                loads="loads",
+                notes="notes",
+                timestamp="timestamp",
+            )
+        ).values("log")[:1]
+
+        movements = Movement.objects.filter(id__in=movement_ids).annotate(
+            recorded_log=Subquery(recorded_log, output_field=JSONField())
+        )
+
+        return MovementWithRecordedLogSerializer(movements, many=True).data
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        del representation['movements']
+        return representation
