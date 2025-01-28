@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Movement, MovementLog, Workout
 
 class MovementSerializer(serializers.ModelSerializer):
-    author = serializers.ReadOnlyField(source='author.id')
+    author = serializers.ReadOnlyField(source='author.email')
     
     class Meta:
         model = Movement
@@ -41,16 +41,26 @@ class MovementLogSerializer(serializers.ModelSerializer):
         if len(reps) != len(loads):
             raise serializers.ValidationError("reps and loads must have the same length.")
         return data
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['movement'] = MovementSerializer(instance.movement).data
+        return representation
 
 class WorkoutSerializer(serializers.ModelSerializer):
-    movement_logs = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    
     class Meta:
         model = Workout
         fields = [
             'id', 'user', 'movements', 'movement_logs',
             'start_timestamp', 'end_timestamp']
-        read_only_fields = ['id', 'user', 'start_timestamp', 'end_timestamp']
+        read_only_fields = [
+            'id', 'user', 'movement_logs',
+            'start_timestamp', 'end_timestamp']
+        
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['movement_logs'] = MovementLogSerializer(instance.movement_logs, many=True).data
+        return representation
 
 class LatestMovementLogSerializer(serializers.ModelSerializer):
     for_current_workout = serializers.BooleanField()

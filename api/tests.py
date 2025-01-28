@@ -81,8 +81,8 @@ class MovementTests(APITestCase):
         self.assertEqual(response.data['count'], 2)
         self.assertTrue(
             any(result['name'] == "Bench Press" for result in response.data['results']))
-        self.assertEqual(response.data['results'][0]['author'], self.user.id)
-        self.assertEqual(response.data['results'][1]['author'], self.user.id)
+        self.assertEqual(response.data['results'][0]['author'], self.user.email)
+        self.assertEqual(response.data['results'][1]['author'], self.user.email)
         self.assertTrue(
             any(parser.isoparse(result['created_timestamp']) == \
                     datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)
@@ -249,7 +249,7 @@ class WorkoutTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.data['count'], 2)
         self.assertTrue(any(
-            item['movements'] == []
+            item['movement_logs'] == []
             for item in response.data['results']
         ))
         self.assertTrue(
@@ -493,7 +493,7 @@ class MovementLogTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 4)
-        response_movement_log_movement_ids = [log['movement'] for log in response.data['results']]
+        response_movement_log_movement_ids = [log['movement']['id'] for log in response.data['results']]
         expected_movement_log_movement_ids = [self.movement1.id, self.movement2.id, self.movement2.id, self.movement2.id]
         self.assertCountEqual(response_movement_log_movement_ids, expected_movement_log_movement_ids)
 
@@ -513,7 +513,7 @@ class MovementLogTests(APITestCase):
         response = self.client.get(self.list_url_with_movement)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['results'][0]['movement'], self.movement1.id)
+        self.assertEqual(response.data['results'][0]['movement']['id'], self.movement1.id)
 
     def test_list_movement_logs_with_workout(self):
         response = self.client.get(self.list_url_with_workout)
@@ -614,7 +614,7 @@ class MovementLogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self.detail_url)
-        self.assertEqual(response.data['movement'], self.movement2.id)
+        self.assertEqual(response.data['movement']['id'], self.movement2.id)
         self.assertEqual(response.data['workout'], self.workout2.id)
         self.assertEqual(response.data['reps'], [1])
         self.assertEqual(response.data['loads'], [2])
