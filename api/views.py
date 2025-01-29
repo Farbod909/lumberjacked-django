@@ -133,11 +133,14 @@ class WorkoutEnd(APIView):
         return Response(serializer.data)
     
 class WorkoutCurrent(APIView):
-    # Get the current workout, its movements' details, and each movement's most recent movement log.
+    permission_classes = [IsAuthenticated, IsWorkoutOwner]
 
+    # Get the current workout, its movements' details, and each movement's most recent movement log.
     def get(self, request, format=None):
         workout = (
-            Workout.objects.filter(end_timestamp__isnull=True)
+            Workout.objects
+            .filter(user=request.user)
+            .filter(end_timestamp__isnull=True)
             .order_by("-start_timestamp")
             .first()
         )
