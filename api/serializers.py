@@ -3,9 +3,7 @@ from django.db.models.functions import JSONObject
 from rest_framework import serializers
 from .models import Movement, MovementLog, Workout
 
-class MovementSerializer(serializers.ModelSerializer):
-    author = serializers.ReadOnlyField(source='author.email')
-    
+class MovementSerializer(serializers.ModelSerializer):    
     class Meta:
         model = Movement
         fields = [
@@ -18,10 +16,12 @@ class MovementSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']
 
 class MovementLogSerializer(serializers.ModelSerializer):
+    movement_detail = MovementSerializer(source='movement')
+
     class Meta:
         model = MovementLog
         fields = [
-            'id', 'movement', 'workout',
+            'id', 'movement', 'movement_detail', 'workout',
             'reps', 'loads', 'notes', 'timestamp',
         ]
         read_only_fields = ['id']
@@ -44,11 +44,6 @@ class MovementLogSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("reps and loads must have the same length.")
         return data
     
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation['movement'] = MovementSerializer(instance.movement).data
-        return representation
-
 class WorkoutSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workout

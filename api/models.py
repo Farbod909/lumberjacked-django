@@ -18,7 +18,7 @@ class Movement(models.Model):
     recommended_working_sets = models.CharField(max_length=7, blank=True)
     recommended_rep_range = models.CharField(max_length=7, blank=True)
     recommended_rpe = models.CharField(max_length=7, blank=True)
-    recommended_rest_time = models.PositiveSmallIntegerField(null=True)
+    recommended_rest_time = models.PositiveSmallIntegerField(blank=True, null=True)
 
     def __str__(self):
         return "Movement (name: %s, user: %s)" % (self.name, self.author)
