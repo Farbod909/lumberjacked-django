@@ -9,7 +9,7 @@ class Movement(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200, blank=False)
-    category = models.CharField(max_length=100, null=True, blank=True)
+    category = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     created_timestamp = models.DateTimeField(auto_now_add=True)
     updated_timestamp = models.DateTimeField(auto_now=True)
