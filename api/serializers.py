@@ -16,7 +16,7 @@ class MovementSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']
 
 class MovementLogSerializer(serializers.ModelSerializer):
-    movement_detail = MovementSerializer(source='movement')
+    movement_detail = MovementSerializer(source='movement', read_only=True)
 
     class Meta:
         model = MovementLog
