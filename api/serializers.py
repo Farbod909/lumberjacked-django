@@ -144,3 +144,33 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
             'id', 'user', 'movements_details',
             'start_timestamp', 'end_timestamp'
         ]
+
+    def validate(self, attrs):
+        """
+        Validate that no movement with existing MovementLog is removed.
+        """
+        # Only check if updating an existing instance
+        if self.instance is None:
+            return attrs
+
+        new_movements = attrs.get('movements', None)
+        if new_movements is None:
+            # movements not updated, no problem
+            return attrs
+
+        old_movements = self.instance.movements or []
+        removed_movements = set(old_movements) - set(new_movements)
+
+        if not removed_movements:
+            return attrs
+
+        # Check if any removed movement has a MovementLog for this workout
+        logs_exist = MovementLog.objects.filter(
+            workout=self.instance,
+            movement_id__in=removed_movements
+        ).exists()
+
+        if logs_exist:
+            raise serializers.ValidationError("Cannot remove movements that have associated movement logs.")
+
+        return attrs
