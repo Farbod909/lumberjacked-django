@@ -226,6 +226,7 @@ class WorkoutCurrent(APIView):
                 output_field=IntegerField()
             )
         )
+        workout.movements_details_prefetched = movements
 
-        workout_serializer = WorkoutWithLatestLogsSerializer(workout, context={'movements_details': movements})
+        workout_serializer = WorkoutWithLatestLogsSerializer(workout)
         return Response(workout_serializer.data)

@@ -96,7 +96,11 @@ class MovementWithLatestLogSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
-    movements_details = serializers.SerializerMethodField()
+    movements_details = MovementWithLatestLogSerializer(
+        source="movements_details_prefetched",
+        many=True,
+        read_only=True
+    )
 
     class Meta:
         model = Workout
@@ -104,10 +108,6 @@ class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
             'id', 'user', 'movements_details',
             'start_timestamp', 'end_timestamp']
         read_only_fields = fields
-
-    def get_movements_details(self, obj):
-        movements_details = self.context.get('movements_details', [])
-        return MovementWithLatestLogSerializer(movements_details, many=True).data
 
 class MovementWithRecordedLogSerializer(serializers.ModelSerializer):
     recorded_log = RecordedMovementLogSerializer()
