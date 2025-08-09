@@ -21,6 +21,49 @@ from .serializers import (
     WorkoutWithRecordedLogsSerializer
 )
 
+def attach_movements_details(workouts):
+    """
+    Annotates each Workout with an attribute .movements_details_prefetched
+    containing ordered Movement objects with their recorded logs.
+
+    Accepts either:
+        - a single Workout instance
+        - an iterable of Workout instances
+    Returns the same type it received.
+    """
+    single_instance = False
+    if not isinstance(workouts, (list, tuple)) and not hasattr(workouts, '__iter__'):
+        workouts = [workouts]
+        single_instance = True
+
+    for workout in workouts:
+        movement_ids = workout.movements or []
+
+        recorded_log = MovementLog.objects.filter(
+            movement_id=OuterRef("id"),
+            workout_id=workout.id
+        ).annotate(
+            log=JSONObject(
+                reps="reps",
+                loads="loads",
+                notes="notes",
+                timestamp="timestamp",
+            )
+        ).values("log")[:1]
+
+        movements = Movement.objects.filter(id__in=movement_ids).annotate(
+            recorded_log=Subquery(recorded_log, output_field=JSONField())
+        ).order_by(
+            Case(
+                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
+                output_field=IntegerField()
+            )
+        )
+
+        workout.movements_details_prefetched = movements
+
+    return workouts[0] if single_instance else workouts
+
 class MovementList(generics.ListCreateAPIView):
     serializer_class = MovementSerializer
     permission_classes = [IsAuthenticated]
@@ -91,28 +134,37 @@ class WorkoutList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Workout.objects.filter(user=user).order_by('-start_timestamp')
-    
-    def perform_create(self, serializer):
-        if 'movements' in serializer.validated_data.keys():
-            initial_movements = serializer.validated_data['movements']
-        else:
-            initial_movements = []
+        qs = Workout.objects.filter(user=user).order_by('-start_timestamp')
+        return self._attach_movements_details(qs)
 
-        if 'template' in self.request.query_params.keys():
+    def perform_create(self, serializer):
+        initial_movements = serializer.validated_data.get('movements', [])
+
+        if 'template' in self.request.query_params:
             try:
-                workout = \
-                    Workout.objects.get(id=self.request.query_params['template'])
+                workout = Workout.objects.get(id=self.request.query_params['template'])
             except Workout.DoesNotExist:
                 raise ValidationError("Template workout does not exist.")
             initial_movements = workout.movements
+
         serializer.save(user=self.request.user, movements=initial_movements)
+
+    def _attach_movements_details(self, workouts):
+        return attach_movements_details(workouts)
+
 
 class WorkoutDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Workout.objects.all()
     lookup_field = 'id'
     serializer_class = WorkoutWithRecordedLogsSerializer
     permission_classes = [IsAuthenticated, IsWorkoutOwner]
+
+    def get_object(self):
+        instance = super().get_object()
+        return self._attach_movements_details(instance)
+
+    def _attach_movements_details(self, workout):
+        return attach_movements_details(workout)
 
 class WorkoutEnd(APIView):
     queryset = Workout.objects.all()

@@ -124,7 +124,15 @@ class MovementWithRecordedLogSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
-    movements_details = serializers.SerializerMethodField()
+    movements = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True
+    )
+    movements_details = MovementWithRecordedLogSerializer(
+        source="movements_details_prefetched",
+        many=True,
+        read_only=True
+    )
 
     class Meta:
         model = Workout
@@ -136,34 +144,3 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
             'id', 'user', 'movements_details',
             'start_timestamp', 'end_timestamp'
         ]
-
-    def get_movements_details(self, obj):
-        movement_ids = obj.movements
-
-        recorded_log = MovementLog.objects.filter(
-            movement_id=OuterRef("id"),
-            workout_id=obj.id
-        ).annotate(
-            log=JSONObject(
-                reps="reps",
-                loads="loads",
-                notes="notes",
-                timestamp="timestamp",
-            )
-        ).values("log")[:1]
-
-        movements = Movement.objects.filter(id__in=movement_ids).annotate(
-            recorded_log=Subquery(recorded_log, output_field=JSONField())
-        ).order_by(
-            Case(
-                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
-                output_field=IntegerField()
-            )
-        )
-
-        return MovementWithRecordedLogSerializer(movements, many=True).data
-    
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        del representation['movements']
-        return representation
