@@ -1,6 +1,6 @@
 from django.db.models import (
     BooleanField, Case, JSONField, OuterRef,
-    Subquery, Value, When
+    Subquery, Value, When, IntegerField
 )
 from django.db.models.functions import JSONObject
 from django.http import Http404
@@ -167,6 +167,11 @@ class WorkoutCurrent(APIView):
                     )
                 ).values("log")[:1],
                 output_field=JSONField(),
+            )
+        ).order_by(
+            Case(
+                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
+                output_field=IntegerField()
             )
         )
 
