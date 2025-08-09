@@ -1,4 +1,8 @@
-from django.db.models import JSONField, OuterRef, Subquery
+from django.db.models import (
+    Case, JSONField, OuterRef,
+    Subquery, When, IntegerField
+)
+
 from django.db.models.functions import JSONObject
 from rest_framework import serializers
 from .models import Movement, MovementLog, Workout
@@ -150,6 +154,11 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
 
         movements = Movement.objects.filter(id__in=movement_ids).annotate(
             recorded_log=Subquery(recorded_log, output_field=JSONField())
+        ).order_by(
+            Case(
+                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
+                output_field=IntegerField()
+            )
         )
 
         return MovementWithRecordedLogSerializer(movements, many=True).data
