@@ -138,16 +138,7 @@ class WorkoutList(generics.ListCreateAPIView):
         return self._attach_movements_details(qs)
 
     def perform_create(self, serializer):
-        initial_movements = serializer.validated_data.get('movements', [])
-
-        if 'template' in self.request.query_params:
-            try:
-                workout = Workout.objects.get(id=self.request.query_params['template'])
-            except Workout.DoesNotExist:
-                raise ValidationError("Template workout does not exist.")
-            initial_movements = workout.movements
-
-        serializer.save(user=self.request.user, movements=initial_movements)
+        serializer.save(user=self.request.user)
 
     def _attach_movements_details(self, workouts):
         return attach_movements_details(workouts)

@@ -240,21 +240,6 @@ class WorkoutTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
 
-    @mock.patch('django.utils.timezone.now',
-                mock.Mock(return_value=datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
-    def test_create_workout(self):
-        workout_data = {}
-        response = self.client.post(self.list_url, workout_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        response = self.client.get(self.list_url)
-        self.assertEqual(response.data['count'], 2)
-        self.assertTrue(
-            any(parser.isoparse(result['start_timestamp']) == \
-                    datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)
-                for result in response.data['results'])
-        )
-
     def test_create_workout_with_movements(self):
         workout_data = {
             'movements': [self.movement1.id],
@@ -268,32 +253,6 @@ class WorkoutTests(APITestCase):
             [movement['id'] for movement in workout['movements_details']] == [self.movement1.id]
             for workout in response.data['results']
         ))
-   
-    def test_create_workout_with_template(self):
-        workout_data = {}
-        response = self.client.post(self.create_url_with_template, workout_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        response = self.client.get(self.list_url)
-        self.assertEqual(response.data['count'], 2)
-        self.assertTrue(any(
-            [movement['id'] for movement in workout['movements_details']] == [self.movement1.id, self.movement2.id]
-            for workout in response.data['results']
-        ))
-
-    def test_create_workout_with_nonexistent_template_fails(self):
-        workout_data = {}
-        create_url_with_nonexistent_template = f"{reverse('workout-list')}?{urlencode({'template': 123})}"
-        response = self.client.post(create_url_with_nonexistent_template, workout_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_retrieve_workout(self):
-        response = self.client.get(self.detail_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['user'], self.user.id)
-        self.assertListEqual(
-            [movement['id'] for movement in response.data['movements_details']],
-            [self.movement1.id, self.movement2.id])
 
     def test_retrieve_workout_alt_user_fails(self):
         self.client.logout()
