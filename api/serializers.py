@@ -77,7 +77,7 @@ class RecordedMovementLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovementLog
         fields = [
-            'reps', 'loads', 'notes', 'timestamp',
+            'id', 'reps', 'loads', 'notes', 'timestamp',
         ]
         read_only_fields = fields
 
