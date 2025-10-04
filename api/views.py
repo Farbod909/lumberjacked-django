@@ -44,6 +44,7 @@ def attach_movements_details(workouts):
             workout_id=workout.id
         ).annotate(
             log=JSONObject(
+                id="id",
                 reps="reps",
                 loads="loads",
                 notes="notes",
