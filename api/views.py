@@ -45,8 +45,7 @@ def attach_movements_details(workouts):
         ).annotate(
             log=JSONObject(
                 id="id",
-                reps="reps",
-                loads="loads",
+                sets="sets",
                 notes="notes",
                 timestamp="timestamp",
             )
@@ -199,8 +198,7 @@ class WorkoutCurrent(APIView):
                 latest_log.annotate(
                     log=JSONObject(
                         id="id",
-                        reps="reps",
-                        loads="loads",
+                        sets="sets",
                         notes="notes",
                         timestamp="timestamp",
                         for_current_workout=Case(

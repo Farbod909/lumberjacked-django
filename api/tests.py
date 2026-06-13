@@ -12,7 +12,7 @@ from .models import Movement, MovementLog, Workout
 from authn.models import User
 
 class MovementTests(APITestCase):
-    
+
     @classmethod
     @mock.patch('django.utils.timezone.now',
                 mock.Mock(return_value=datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
@@ -59,7 +59,7 @@ class MovementTests(APITestCase):
     def test_list_movements_alt_user(self):
         alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
         self.client.force_authenticate(user=alt_user)
-
+        
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
@@ -97,7 +97,7 @@ class MovementTests(APITestCase):
     def test_retrieve_movement_alt_user_fails(self):
         alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
         self.client.force_authenticate(user=alt_user)
-
+        
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -161,7 +161,8 @@ class MovementTests(APITestCase):
     def test_delete_movement_with_movement_logs(self):
         workout = Workout.objects.create(user=self.user, movements=[self.movement.id])
         MovementLog.objects.create(
-            movement=self.movement, workout=workout, reps=[5, 5, 5], loads=[25, 25, 25])
+            movement=self.movement, workout=workout,
+            sets=[{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}])
         self.assertEqual(MovementLog.objects.count(), 1)
         
         response = self.client.delete(self.detail_url)
@@ -276,7 +277,8 @@ class WorkoutTests(APITestCase):
 
     def test_delete_workout_with_movement_logs(self):
         MovementLog.objects.create(
-            movement=self.movement1, workout=self.workout, reps=[5, 5, 5], loads=[25, 25, 25])
+            movement=self.movement1, workout=self.workout,
+            sets=[{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}])
         self.assertEqual(MovementLog.objects.count(), 1)
 
         response = self.client.delete(self.detail_url)
@@ -306,27 +308,23 @@ class WorkoutTests(APITestCase):
 
         MovementLog.objects.create(
             movement=self.movement1,
-            workout=self.workout, 
-            reps=[5, 5, 5], 
-            loads=[25, 25, 25], 
+            workout=self.workout,
+            sets=[{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now() - datetime.timedelta(seconds=15))
         MovementLog.objects.create(
             movement=self.movement2,
             workout=self.workout,
-            reps=[8, 8, 8],
-            loads=[120, 120, 120],
+            sets=[{'reps': 8, 'load': 120.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now() - datetime.timedelta(seconds=10))
         MovementLog.objects.create(
             movement=self.movement2,
             workout=self.current_workout,
-            reps=[10, 10, 10],
-            loads=[130, 130, 130],
+            sets=[{'reps': 10, 'load': 130.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now() - datetime.timedelta(seconds=5))
         MovementLog.objects.create(
             movement=self.movement3,
             workout=self.current_workout,
-            reps=[5, 5, 5],
-            loads=[200, 200, 200],
+            sets=[{'reps': 5, 'load': 200.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now())
         
         response = self.client.get(self.current_url)
@@ -348,20 +346,17 @@ class WorkoutTests(APITestCase):
         MovementLog.objects.create(
             movement=self.movement1,
             workout=self.workout,
-            reps=[5, 5, 5],
-            loads=[25, 25, 25],
+            sets=[{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now() - datetime.timedelta(seconds=10))
         MovementLog.objects.create(
             movement=self.movement2,
             workout=self.workout,
-            reps=[8, 8, 8],
-            loads=[130, 130, 130],
+            sets=[{'reps': 8, 'load': 130.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now() - datetime.timedelta(seconds=5))
         MovementLog.objects.create(
             movement=self.movement3,
             workout=self.current_workout,
-            reps=[5, 5, 5],
-            loads=[200, 200, 200],
+            sets=[{'reps': 5, 'load': 200.0, 'type': 'working', 'rest_time': 120}],
             timestamp=timezone.now())
         
         response = self.client.get(self.current_url)
@@ -396,13 +391,17 @@ class MovementLogTests(APITestCase):
             cls.workout2 = Workout.objects.create(user=cls.user, movements=[cls.movement2.id])
 
             cls.movement1_log1 = MovementLog.objects.create(
-                movement=cls.movement1, workout=cls.workout1, reps=[5, 5, 5], loads=[25, 25, 25])
+                movement=cls.movement1, workout=cls.workout1,
+                sets=[{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}])
             cls.movement2_log1 = MovementLog.objects.create(
-                movement=cls.movement2, workout=cls.workout2, reps=[8, 8, 8], loads=[130, 130, 130])
+                movement=cls.movement2, workout=cls.workout2,
+                sets=[{'reps': 8, 'load': 130.0, 'type': 'working', 'rest_time': 120}])
             cls.movement2_log2 = MovementLog.objects.create(
-                movement=cls.movement2, workout=cls.workout2, reps=[10, 10, 10], loads=[130, 130, 135])
+                movement=cls.movement2, workout=cls.workout2,
+                sets=[{'reps': 10, 'load': 130.0, 'type': 'working', 'rest_time': 120}])
             cls.movement2_log3 = MovementLog.objects.create(
-                movement=cls.movement2, workout=cls.workout2, reps=[9, 9, 9], loads=[135, 135, 135])
+                movement=cls.movement2, workout=cls.workout2,
+                sets=[{'reps': 9, 'load': 135.0, 'type': 'working', 'rest_time': 120}])
         
         cls.list_url = reverse('movement-log-list')
         cls.list_url_with_movement = f"{reverse('movement-log-list')}?{urlencode({'movement': cls.movement1.id})}"
@@ -458,38 +457,43 @@ class MovementLogTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
             mock.Mock(return_value=datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def test_create_movement_log(self):
-        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         response = self.client.get(self.list_url)
         self.assertEqual(response.data['count'], 5)
         self.assertTrue(
-            any(result['reps'] == [3, 2, 1] for result in response.data['results']))
+            any(result['sets'] == sets for result in response.data['results']))
         self.assertTrue(
             any(parser.isoparse(result['timestamp']) == \
                     datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)
                 for result in response.data['results'])
         )
 
-    def test_create_movement_log_missing_workout_field_fails(self):
-        movement_log_data = {'workout': self.workout2.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+    def test_create_movement_log_missing_movement_field_fails(self):
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    
+
     def test_create_movement_log_missing_workout_field_fails(self):
-        movement_log_data = {'movement': self.movement2.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': self.movement2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_movement_log_invalid_movement_field_fails(self):
-        movement_log_data = {'movement': 123, 'workout': self.workout2.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': 123, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_movement_log_invalid_workout_field_fails(self):
-        movement_log_data = {'movement': self.movement2.id, 'workout': 123, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': self.movement2.id, 'workout': 123, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_movement_log_not_owning_movement_fails(self):
@@ -499,8 +503,9 @@ class MovementLogTests(APITestCase):
             email=alt_user_email, password=alt_user_password)
         alt_user_movement = Movement.objects.create(name="Deadlift", category="Core", author=alt_user)
 
-        movement_log_data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_create_movement_log_not_owning_workout_fails(self):
@@ -510,19 +515,32 @@ class MovementLogTests(APITestCase):
             email=alt_user_email, password=alt_user_password)
         alt_user_workout = Workout.objects.create(user=alt_user)
 
-        movement_log_data = {'movement': self.movement2.id, 'workout': alt_user_workout.id, 'reps': [3, 2, 1], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
+        movement_log_data = {'movement': self.movement2.id, 'workout': alt_user_workout.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_create_movement_log_reps_and_loads_length_mismatch_fails(self):
-        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'reps': [3, 2], 'loads': [123, 456, 789]}
-        response = self.client.post(self.list_url, movement_log_data)
+    def test_create_movement_log_empty_sets_fails(self):
+        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'sets': []}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_movement_log_invalid_set_type_fails(self):
+        sets = [{'reps': 3, 'load': 123.0, 'type': 'invalid_type', 'rest_time': 120}]
+        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_movement_log_optional_set_fields(self):
+        sets = [{'reps': 5, 'type': 'working'}]
+        movement_log_data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.post(self.list_url, movement_log_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_retrieve_movement_log(self):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['reps'], [5, 5, 5])
+        self.assertEqual(response.data['sets'], [{'reps': 5, 'load': 25.0, 'type': 'working', 'rest_time': 120}])
 
     def test_retrieve_nonexistent_movement_log_fails(self):
         url = reverse('movement-log-detail', kwargs={'id': 123})
@@ -539,15 +557,15 @@ class MovementLogTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
             mock.Mock(return_value=datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def test_update_movement_log(self):
-        data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'reps': [1], 'loads': [2]}
-        response = self.client.put(self.detail_url, data)
+        sets = [{'reps': 1, 'load': 2.0, 'type': 'working', 'rest_time': None}]
+        data = {'movement': self.movement2.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.put(self.detail_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self.detail_url)
         self.assertEqual(response.data['movement_detail']['id'], self.movement2.id)
         self.assertEqual(response.data['workout'], self.workout2.id)
-        self.assertEqual(response.data['reps'], [1])
-        self.assertEqual(response.data['loads'], [2])
+        self.assertEqual(response.data['sets'], sets)
         self.assertEqual( # assert timestamp is unchanged
             parser.isoparse(response.data['timestamp']),
             datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc))
@@ -569,8 +587,9 @@ class MovementLogTests(APITestCase):
             email=alt_user_email, password=alt_user_password)
         alt_user_movement = Movement.objects.create(name="Deadlift", category="Core", author=alt_user)
 
-        data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'reps': [1], 'loads': [2]}
-        response = self.client.put(self.detail_url, data)
+        sets = [{'reps': 1, 'load': 2.0, 'type': 'working', 'rest_time': None}]
+        data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'sets': sets}
+        response = self.client.put(self.detail_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_update_movement_log_not_owning_workout_fails(self):
@@ -580,14 +599,13 @@ class MovementLogTests(APITestCase):
             email=alt_user_email, password=alt_user_password)
         alt_user_workout = Workout.objects.create(user=alt_user)
 
-        data = {'movement': self.movement2.id, 'workout': alt_user_workout.id, 'reps': [1], 'loads': [2]}
-        response = self.client.put(self.detail_url, data)
+        sets = [{'reps': 1, 'load': 2.0, 'type': 'working', 'rest_time': None}]
+        data = {'movement': self.movement2.id, 'workout': alt_user_workout.id, 'sets': sets}
+        response = self.client.put(self.detail_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-
-    def test_update_movement_log_reps_and_loads_length_mismatch_fails(self):
-        movement_log_data = {'reps': [3, 2], 'loads': [123, 456, 789]}
-        response = self.client.patch(self.detail_url, movement_log_data)
+    def test_update_movement_log_empty_sets_fails(self):
+        response = self.client.patch(self.detail_url, {'sets': []}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_delete_movement_log(self):

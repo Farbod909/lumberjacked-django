@@ -5,7 +5,14 @@ from django.db.models import (
 
 from django.db.models.functions import JSONObject
 from rest_framework import serializers
-from .models import Movement, MovementLog, Workout
+from .models import Movement, MovementLog, Workout, SET_TYPE_CHOICES
+
+
+class SetSerializer(serializers.Serializer):
+    reps = serializers.IntegerField(min_value=0)
+    load = serializers.FloatField(required=False, allow_null=True)
+    type = serializers.ChoiceField(choices=SET_TYPE_CHOICES)
+    rest_time = serializers.IntegerField(min_value=0, required=False, allow_null=True)
 
 class MovementSerializer(serializers.ModelSerializer):    
     class Meta:
@@ -21,32 +28,20 @@ class MovementSerializer(serializers.ModelSerializer):
 
 class MovementLogSerializer(serializers.ModelSerializer):
     movement_detail = MovementSerializer(source='movement', read_only=True)
+    sets = SetSerializer(many=True)
 
     class Meta:
         model = MovementLog
         fields = [
             'id', 'movement', 'movement_detail', 'workout',
-            'reps', 'loads', 'notes', 'timestamp',
+            'sets', 'notes', 'timestamp',
         ]
         read_only_fields = ['id']
 
-    def validate(self, data):
-        # Ensure reps and loads have same length.
-        reps = []
-        loads = []
-        if self.instance:
-            if self.instance.reps:
-                reps = self.instance.reps
-            if self.instance.loads:
-                loads = self.instance.loads
-        if 'reps' in data:
-            reps = data['reps']
-        if 'loads' in data:
-            loads = data['loads']
-
-        if len(reps) != len(loads):
-            raise serializers.ValidationError("reps and loads must have the same length.")
-        return data
+    def validate_sets(self, value):
+        if len(value) == 0:
+            raise serializers.ValidationError("At least one set is required.")
+        return value
     
 class WorkoutSerializer(serializers.ModelSerializer):
     class Meta:
@@ -69,7 +64,7 @@ class LatestMovementLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovementLog
         fields = [
-            'id', 'reps', 'loads', 'notes', 'timestamp', 'for_current_workout'
+            'id', 'sets', 'notes', 'timestamp', 'for_current_workout'
         ]
         read_only_fields = fields
 
@@ -77,7 +72,7 @@ class RecordedMovementLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MovementLog
         fields = [
-            'id', 'reps', 'loads', 'notes', 'timestamp',
+            'id', 'sets', 'notes', 'timestamp',
         ]
         read_only_fields = fields
 

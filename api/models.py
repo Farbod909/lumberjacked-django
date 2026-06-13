@@ -5,6 +5,8 @@ from django.utils import timezone
 from authn.models import User
 from lumberjacked.utils import generate_id
 
+SET_TYPE_CHOICES = ['warmup', 'working', 'failure', 'myoreps']
+
 class Movement(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
@@ -37,8 +39,9 @@ class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     movement = models.ForeignKey(Movement, on_delete=models.CASCADE, related_name='movement_logs')
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name='movement_logs')
-    reps = ArrayField(models.PositiveSmallIntegerField(), default=list) # Number of reps in each set.
-    loads = ArrayField(models.FloatField(), default=list) # Number of reps in each set.
+    # Each element: {reps: int, load: float|null, type: "warmup"|"working"|"failure"|"myoreps", rest_time: int|null}
+    # Structure is enforced by SetSerializer.
+    sets = models.JSONField(default=list)
     notes = models.TextField(blank=True)
     timestamp = models.DateTimeField(blank=True, default=timezone.now)
 
