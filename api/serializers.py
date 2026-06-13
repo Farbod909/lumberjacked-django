@@ -21,9 +21,6 @@ class MovementSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'author', 'name', 'category', 'notes',
             'created_timestamp', 'updated_timestamp',
-            'recommended_warmup_sets', 'recommended_working_sets',
-            'recommended_rep_range', 'recommended_rpe', 
-            'recommended_rest_time',
         ]
         read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']
 
@@ -85,9 +82,7 @@ class MovementWithLatestLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'author', 'name', 'category', 'notes',
             'created_timestamp', 'updated_timestamp',
-            'recommended_warmup_sets', 'recommended_working_sets',
-            'recommended_rep_range', 'recommended_rpe', 
-            'recommended_rest_time', 'latest_log',
+            'latest_log',
         ]
         read_only_fields = fields
 
@@ -113,9 +108,7 @@ class MovementWithRecordedLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'author', 'name', 'category', 'notes',
             'created_timestamp', 'updated_timestamp',
-            'recommended_warmup_sets', 'recommended_working_sets',
-            'recommended_rep_range', 'recommended_rpe', 
-            'recommended_rest_time', 'recorded_log',
+            'recorded_log',
         ]
         read_only_fields = fields
 
