@@ -1,4 +1,3 @@
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 
@@ -79,17 +78,18 @@ class Movement(models.Model):
 
     def __str__(self):
         return "Movement (name: %s, user: %s)" % (self.name, self.author)
-    
+
+
 class Workout(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     user = models.ForeignKey(User, null=True, on_delete=models.CASCADE)
-    movements = ArrayField(models.PositiveBigIntegerField(), default=list)
     start_timestamp = models.DateTimeField(auto_now_add=True)
     end_timestamp = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return "Workout (date: %s, user: %s)" % (self.start_timestamp.date(), self.user)
-    
+
+
 class MovementLogTemplate(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
@@ -103,10 +103,23 @@ class MovementLogTemplate(models.Model):
         return "MovementLogTemplate (name: %s, user: %s)" % (self.name, self.author)
 
 
+class WorkoutMovement(models.Model):
+    id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
+    workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name='workout_movements')
+    movement = models.ForeignKey(Movement, on_delete=models.CASCADE, related_name='workout_movements')
+    template = models.ForeignKey(MovementLogTemplate, null=True, blank=True, on_delete=models.SET_NULL)
+    order = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return "WorkoutMovement (movement: %s, workout: %s, order: %s)" % (self.movement, self.workout, self.order)
+
+
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
-    movement = models.ForeignKey(Movement, on_delete=models.CASCADE, related_name='movement_logs')
-    workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name='movement_logs')
+    workout_movement = models.OneToOneField(WorkoutMovement, on_delete=models.CASCADE, related_name='movement_log')
     # Each element: {reps: int, load: float|null, type: "warmup"|"working"|"failure"|"myoreps", rest_time: int|null}
     # Structure is enforced by SetSerializer.
     sets = models.JSONField(default=list)
@@ -114,4 +127,4 @@ class MovementLog(models.Model):
     timestamp = models.DateTimeField(blank=True, default=timezone.now)
 
     def __str__(self):
-        return "MovementLog (movement: %s, date: %s)" % (self.movement, self.timestamp.date())
+        return "MovementLog (movement: %s, date: %s)" % (self.workout_movement.movement, self.timestamp.date())

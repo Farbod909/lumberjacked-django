@@ -31,9 +31,11 @@ python manage.py test api.tests.MovementTests.test_create_movement
 
 **Migrations (run inside the running container):**
 ```bash
-docker exec -it <container_name> python manage.py migrate
 docker exec -it <container_name> python manage.py makemigrations
+docker exec -it <container_name> python manage.py migrate
 ```
+
+Always use `makemigrations` to generate migrations — never write them by hand.
 
 ## Environment
 

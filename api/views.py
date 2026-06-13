@@ -1,11 +1,6 @@
-from django.db.models import (
-    BooleanField, Case, JSONField, OuterRef,
-    Subquery, Value, When, IntegerField
-)
-from django.db.models.functions import JSONObject
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from datetime import datetime
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -13,68 +8,34 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Movement, MovementLog, MovementLogTemplate, Workout
-from .permissions import IsMovementOwner, IsMovementLogOwner, IsMovementLogTemplateOwner, IsWorkoutOwner
+from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement
+from .permissions import (
+    IsMovementOwner, IsMovementLogOwner, IsMovementLogTemplateOwner,
+    IsWorkoutOwner, IsWorkoutMovementOwner,
+)
 from .serializers import (
     MovementSerializer, MovementLogSerializer,
     MovementLogTemplateSerializer,
-    WorkoutSerializer, WorkoutWithLatestLogsSerializer,
-    WorkoutWithRecordedLogsSerializer
+    WorkoutSerializer, WorkoutMovementSerializer,
+    WorkoutWithLatestLogsSerializer, WorkoutWithRecordedLogsSerializer,
 )
 
-def attach_movements_details(workouts):
-    """
-    Annotates each Workout with an attribute .movements_details_prefetched
-    containing ordered Movement objects with their recorded logs.
+_WORKOUT_MOVEMENTS_PREFETCH = Prefetch(
+    'workout_movements',
+    queryset=WorkoutMovement.objects.select_related('movement', 'template', 'movement_log').order_by('order'),
+)
 
-    Accepts either:
-        - a single Workout instance
-        - an iterable of Workout instances
-    Returns the same type it received.
-    """
-    single_instance = False
-    if not isinstance(workouts, (list, tuple)) and not hasattr(workouts, '__iter__'):
-        workouts = [workouts]
-        single_instance = True
-
-    for workout in workouts:
-        movement_ids = workout.movements or []
-
-        recorded_log = MovementLog.objects.filter(
-            movement_id=OuterRef("id"),
-            workout_id=workout.id
-        ).annotate(
-            log=JSONObject(
-                id="id",
-                sets="sets",
-                notes="notes",
-                timestamp="timestamp",
-            )
-        ).values("log")[:1]
-
-        movements = Movement.objects.filter(id__in=movement_ids).annotate(
-            recorded_log=Subquery(recorded_log, output_field=JSONField())
-        ).order_by(
-            Case(
-                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
-                output_field=IntegerField()
-            )
-        )
-
-        workout.movements_details_prefetched = movements
-
-    return workouts[0] if single_instance else workouts
 
 class MovementList(generics.ListCreateAPIView):
     serializer_class = MovementSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Movement.objects.filter(author=user).order_by('name')
+        return Movement.objects.filter(author=self.request.user).order_by('name')
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
 
 class MovementDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Movement.objects.all()
@@ -82,29 +43,60 @@ class MovementDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MovementSerializer
     permission_classes = [IsAuthenticated, IsMovementOwner]
 
+
+class WorkoutMovementList(generics.ListCreateAPIView):
+    serializer_class = WorkoutMovementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = WorkoutMovement.objects.filter(workout__user=self.request.user).select_related('movement', 'template')
+        if 'workout' in self.request.query_params:
+            qs = qs.filter(workout=self.request.query_params['workout'])
+        return qs.order_by('workout', 'order')
+
+    def perform_create(self, serializer):
+        workout = serializer.validated_data['workout']
+        if workout.user != self.request.user:
+            raise PermissionDenied("Workout is not owned by the authenticated user.")
+        movement = serializer.validated_data['movement']
+        if movement.author != self.request.user:
+            raise PermissionDenied("Movement is not owned by the authenticated user.")
+        template = serializer.validated_data.get('template')
+        if template and template.author != self.request.user:
+            raise PermissionDenied("Template is not owned by the authenticated user.")
+        next_order = workout.workout_movements.count()
+        serializer.save(order=next_order)
+
+
+class WorkoutMovementDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = WorkoutMovement.objects.select_related('movement', 'template')
+    lookup_field = 'id'
+    serializer_class = WorkoutMovementSerializer
+    permission_classes = [IsAuthenticated, IsWorkoutMovementOwner]
+
+    def perform_destroy(self, instance):
+        try:
+            instance.movement_log
+            raise ValidationError("Cannot remove a movement that has an associated log.")
+        except MovementLog.DoesNotExist:
+            instance.delete()
+
+
 class MovementLogList(generics.ListCreateAPIView):
     serializer_class = MovementLogSerializer
     permission_classes = [IsAuthenticated]
 
-    def _check_create_permissions(self, validated_data):
-        movement = validated_data['movement']
-        workout = validated_data['workout']
-        if movement.author != self.request.user or workout.user != self.request.user:
-                raise PermissionDenied("Movement or workout is not owned by the authenticated user.")
-
     def get_queryset(self):
-        user = self.request.user
-        qs = MovementLog.objects.filter(workout__user=user)
-        if 'movement' in self.request.query_params.keys():
-            qs = qs.filter(movement=self.request.query_params['movement'])
-
-        if 'workout' in self.request.query_params.keys():
-            qs = qs.filter(workout=self.request.query_params['workout'])
-        
+        qs = MovementLog.objects.filter(workout_movement__workout__user=self.request.user)
+        if 'workout_movement' in self.request.query_params:
+            qs = qs.filter(workout_movement=self.request.query_params['workout_movement'])
+        if 'movement' in self.request.query_params:
+            qs = qs.filter(workout_movement__movement=self.request.query_params['movement'])
+        if 'workout' in self.request.query_params:
+            qs = qs.filter(workout_movement__workout=self.request.query_params['workout'])
         return qs.order_by('-timestamp')
-            
+
     def perform_create(self, serializer):
-        self._check_create_permissions(serializer.validated_data)
         return serializer.save(timestamp=timezone.now())
 
 
@@ -114,49 +106,31 @@ class MovementLogDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MovementLogSerializer
     permission_classes = [IsAuthenticated, IsMovementLogOwner]
 
-    def _check_update_permissions(self, validated_data):
-        if 'movement' in validated_data.keys():
-            movement = validated_data['movement']
-            if movement.author != self.request.user:
-                raise PermissionDenied("Movement is not owned by the authenticated user.")
-            
-        if 'workout' in validated_data.keys():
-            workout = validated_data['workout']
-            if workout.user != self.request.user:
-                raise PermissionDenied("Workout is not owned by the authenticated user.")
-
-    def perform_update(self, serializer):
-        self._check_update_permissions(serializer.validated_data)
-        return serializer.save()
 
 class WorkoutList(generics.ListCreateAPIView):
     serializer_class = WorkoutWithRecordedLogsSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        qs = Workout.objects.filter(user=user).order_by('-start_timestamp')
-        return self._attach_movements_details(qs)
+        return (
+            Workout.objects
+            .filter(user=self.request.user)
+            .order_by('-start_timestamp')
+            .prefetch_related(_WORKOUT_MOVEMENTS_PREFETCH)
+        )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    def _attach_movements_details(self, workouts):
-        return attach_movements_details(workouts)
-
 
 class WorkoutDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Workout.objects.all()
     lookup_field = 'id'
     serializer_class = WorkoutWithRecordedLogsSerializer
     permission_classes = [IsAuthenticated, IsWorkoutOwner]
 
-    def get_object(self):
-        instance = super().get_object()
-        return self._attach_movements_details(instance)
+    def get_queryset(self):
+        return Workout.objects.prefetch_related(_WORKOUT_MOVEMENTS_PREFETCH)
 
-    def _attach_movements_details(self, workout):
-        return attach_movements_details(workout)
 
 class WorkoutEnd(APIView):
     queryset = Workout.objects.all()
@@ -175,49 +149,20 @@ class WorkoutEnd(APIView):
         workout.save()
         serializer = WorkoutSerializer(workout)
         return Response(serializer.data)
-    
+
+
 class WorkoutCurrent(APIView):
     permission_classes = [IsAuthenticated, IsWorkoutOwner]
 
-    # Get the current workout, its movements' details, and each movement's most recent movement log.
     def get(self, request, format=None):
         workout = (
             Workout.objects
-            .filter(user=request.user)
-            .filter(end_timestamp__isnull=True)
+            .filter(user=request.user, end_timestamp__isnull=True)
             .order_by("-start_timestamp")
             .first()
         )
         if workout is None:
             raise Http404("Current workout does not exist.")
-        
-        movement_ids = workout.movements
-
-        latest_log = MovementLog.objects.filter(movement_id=OuterRef("id")).order_by("-timestamp")
-        movements = Movement.objects.filter(id__in=movement_ids).annotate(
-            latest_log=Subquery(
-                latest_log.annotate(
-                    log=JSONObject(
-                        id="id",
-                        sets="sets",
-                        notes="notes",
-                        timestamp="timestamp",
-                        for_current_workout=Case(
-                            When(workout=workout.id, then=Value(True)),
-                            default=Value(False),
-                            output_field=BooleanField(),
-                        ),
-                    )
-                ).values("log")[:1],
-                output_field=JSONField(),
-            )
-        ).order_by(
-            Case(
-                *[When(id=pk, then=pos) for pos, pk in enumerate(movement_ids)],
-                output_field=IntegerField()
-            )
-        )
-        workout.movements_details_prefetched = movements
 
         workout_serializer = WorkoutWithLatestLogsSerializer(workout)
         return Response(workout_serializer.data)
