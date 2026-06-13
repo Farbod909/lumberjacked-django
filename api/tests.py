@@ -19,7 +19,7 @@ class MovementTests(APITestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="test@example.com", password="password")
 
-        movement_data = {'name': 'Squat', 'category': 'Legs', 'author': cls.user}
+        movement_data = {'name': 'Squat', 'author': cls.user}
         cls.movement = Movement.objects.create(**movement_data)
 
         cls.list_url = reverse('movement-list')
@@ -51,7 +51,6 @@ class MovementTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['name'], "Squat")
-        self.assertEqual(response.data['results'][0]['category'], "Legs")
         self.assertEqual(
             parser.isoparse(response.data['results'][0]['created_timestamp']),
             datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc))
@@ -67,7 +66,7 @@ class MovementTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
                 mock.Mock(return_value=datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def test_create_movement(self):
-        movement_data = {'name': 'Bench Press', 'category': 'Chest'}
+        movement_data = {'name': 'Bench Press'}
         response = self.client.post(self.list_url, movement_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -84,7 +83,7 @@ class MovementTests(APITestCase):
         )
 
     def test_create_movement_missing_required_fields_fails(self):
-        movement_data = {'category': 'Chest'}
+        movement_data = {}
         response = self.client.post(self.list_url, movement_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -92,7 +91,6 @@ class MovementTests(APITestCase):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['name'], "Squat")
-        self.assertEqual(response.data['category'], "Legs")
 
     def test_retrieve_movement_alt_user_fails(self):
         alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
@@ -109,19 +107,18 @@ class MovementTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
                 mock.Mock(return_value=datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def test_update_movement(self):
-        data = {'name': 'Updated Squat', 'category': 'Updated Legs'}
+        data = {'name': 'Updated Squat'}
         response = self.client.put(self.detail_url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self.detail_url)
         self.assertEqual(response.data['name'], "Updated Squat")
-        self.assertEqual(response.data['category'], "Updated Legs")
         self.assertEqual(
             parser.isoparse(response.data['updated_timestamp']),
             datetime.datetime(2021, 3, 12, 0, 0, 0, tzinfo=pytz.utc))
         
     def test_update_missing_required_fields_fails(self):
-        data = {'category': 'Updated Legs'}
+        data = {}
         response = self.client.put(self.detail_url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
     
@@ -139,12 +136,12 @@ class MovementTests(APITestCase):
             datetime.datetime(2022, 3, 12, 0, 0, 0, tzinfo=pytz.utc))
         
     def test_partial_update_missing_required_fields_succeeds(self):
-        data = {'category': 'Glutes'}
+        data = {'notes': 'Keep back straight'}
         response = self.client.patch(self.detail_url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self.detail_url)
-        self.assertEqual(response.data['category'], "Glutes")
+        self.assertEqual(response.data['notes'], 'Keep back straight')
 
     def test_delete_movement(self):
         response = self.client.delete(self.detail_url)
@@ -178,8 +175,8 @@ class WorkoutTests(APITestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="test@example.com", password="password")
 
-        cls.movement1 = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
-        cls.movement2 = Movement.objects.create(name="Bench Press", category="Chest", author=cls.user)
+        cls.movement1 = Movement.objects.create(name="Squat", author=cls.user)
+        cls.movement2 = Movement.objects.create(name="Bench Press", author=cls.user)
 
         workout_data = {
             'user': cls.user,
@@ -303,7 +300,7 @@ class WorkoutTests(APITestCase):
     def test_current_workout(self):
         self.client.get(self.end_url) # end existing workout
 
-        self.movement3 = Movement.objects.create(name="Pullup", category="Back", author=self.user)
+        self.movement3 = Movement.objects.create(name="Pullup", author=self.user)
         self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
 
         MovementLog.objects.create(
@@ -340,7 +337,7 @@ class WorkoutTests(APITestCase):
     def test_current_workout_half_complete(self):
         self.client.get(self.end_url) # end existing workout
 
-        self.movement3 = Movement.objects.create(name="Pullup", category="Back", author=self.user)
+        self.movement3 = Movement.objects.create(name="Pullup", author=self.user)
         self.current_workout = Workout.objects.create(user=self.user, movements=[self.movement2.id, self.movement3.id])
 
         MovementLog.objects.create(
@@ -384,8 +381,8 @@ class MovementLogTests(APITestCase):
 
             cls.user = User.objects.create_user(email="test@example.com", password="password")
 
-            cls.movement1 = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
-            cls.movement2 = Movement.objects.create(name="Bench Press", category="Chest", author=cls.user)
+            cls.movement1 = Movement.objects.create(name="Squat", author=cls.user)
+            cls.movement2 = Movement.objects.create(name="Bench Press", author=cls.user)
 
             cls.workout1 = Workout.objects.create(user=cls.user, movements=[cls.movement1.id])
             cls.workout2 = Workout.objects.create(user=cls.user, movements=[cls.movement2.id])
@@ -501,7 +498,7 @@ class MovementLogTests(APITestCase):
         alt_user_password = "altpassword"
         alt_user = User.objects.create_user(
             email=alt_user_email, password=alt_user_password)
-        alt_user_movement = Movement.objects.create(name="Deadlift", category="Core", author=alt_user)
+        alt_user_movement = Movement.objects.create(name="Deadlift", author=alt_user)
 
         sets = [{'reps': 3, 'load': 123.0, 'type': 'working', 'rest_time': 120}]
         movement_log_data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'sets': sets}
@@ -585,7 +582,7 @@ class MovementLogTests(APITestCase):
         alt_user_password = "altpassword"
         alt_user = User.objects.create_user(
             email=alt_user_email, password=alt_user_password)
-        alt_user_movement = Movement.objects.create(name="Deadlift", category="Core", author=alt_user)
+        alt_user_movement = Movement.objects.create(name="Deadlift", author=alt_user)
 
         sets = [{'reps': 1, 'load': 2.0, 'type': 'working', 'rest_time': None}]
         data = {'movement': alt_user_movement.id, 'workout': self.workout2.id, 'sets': sets}
@@ -626,7 +623,7 @@ class MovementLogTemplateTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="test@example.com", password="password")
-        cls.movement = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
+        cls.movement = Movement.objects.create(name="Squat", author=cls.user)
         cls.template = MovementLogTemplate.objects.create(
             author=cls.user,
             name="Squat 5x5",
@@ -665,7 +662,7 @@ class MovementLogTemplateTests(APITestCase):
         self.assertEqual(response.data['count'], 0)
 
     def test_list_templates_filter_by_movement(self):
-        other_movement = Movement.objects.create(name="Bench Press", category="Chest", author=self.user)
+        other_movement = Movement.objects.create(name="Bench Press", author=self.user)
         MovementLogTemplate.objects.create(
             author=self.user, name="Generic", sets=[{'reps': '8-10', 'type': 'working'}])
         MovementLogTemplate.objects.create(
@@ -699,7 +696,7 @@ class MovementLogTemplateTests(APITestCase):
 
     def test_create_template_with_movement_not_owned_fails(self):
         alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
-        alt_movement = Movement.objects.create(name="Deadlift", category="Back", author=alt_user)
+        alt_movement = Movement.objects.create(name="Deadlift", author=alt_user)
         data = {
             'name': 'Deadlift 5x5',
             'movement': alt_movement.id,

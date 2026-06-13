@@ -19,7 +19,7 @@ class MovementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movement
         fields = [
-            'id', 'author', 'name', 'category', 'notes',
+            'id', 'author', 'name', 'notes',
             'resistance_type', 'body_part',
             'created_timestamp', 'updated_timestamp',
         ]
@@ -81,7 +81,7 @@ class MovementWithLatestLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movement
         fields = [
-            'id', 'author', 'name', 'category', 'notes',
+            'id', 'author', 'name', 'notes',
             'created_timestamp', 'updated_timestamp',
             'latest_log',
         ]
@@ -107,7 +107,7 @@ class MovementWithRecordedLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movement
         fields = [
-            'id', 'author', 'name', 'category', 'notes',
+            'id', 'author', 'name', 'notes',
             'created_timestamp', 'updated_timestamp',
             'recorded_log',
         ]
