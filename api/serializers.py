@@ -20,6 +20,7 @@ class MovementSerializer(serializers.ModelSerializer):
         model = Movement
         fields = [
             'id', 'author', 'name', 'category', 'notes',
+            'resistance_type', 'body_part',
             'created_timestamp', 'updated_timestamp',
         ]
         read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']

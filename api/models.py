@@ -7,12 +7,71 @@ from lumberjacked.utils import generate_id
 
 SET_TYPE_CHOICES = ['warmup', 'working', 'failure', 'myoreps']
 
+
+class ResistanceType(models.TextChoices):
+    BODYWEIGHT      = 'bodyweight',      'Bodyweight'
+    DUMBBELL        = 'dumbbell',        'Dumbbell'
+    BARBELL         = 'barbell',         'Barbell'
+    MACHINE         = 'machine',         'Machine'
+    CABLE           = 'cable',           'Cable'
+    KETTLEBELL      = 'kettlebell',      'Kettlebell'
+    RESISTANCE_BAND = 'resistance_band', 'Resistance Band'
+    SMITH_MACHINE   = 'smith_machine',   'Smith Machine'
+    FIXED_BARBELL   = 'fixed_barbell',   'Fixed Barbell'
+    WEIGHTED_VEST   = 'weighted_vest',   'Weighted Vest'
+    BELT_ATTACHED   = 'belt_attached',   'Belt-attached'
+    DIGITAL         = 'digital',         'Digital'
+    OTHER           = 'other',           'Other'
+
+
+class BodyPart(models.TextChoices):
+    # Broad
+    FULL_BODY           = 'full_body',           'Full Body'
+    UPPER_BODY          = 'upper_body',          'Upper Body'
+    LOWER_BODY          = 'lower_body',          'Lower Body'
+    CORE                = 'core',                'Core'
+    # Groups
+    CHEST               = 'chest',               'Chest'
+    BACK                = 'back',                'Back'
+    SHOULDERS           = 'shoulders',           'Shoulders'
+    ARMS                = 'arms',                'Arms'
+    GLUTES              = 'glutes',              'Glutes'
+    QUADS               = 'quads',               'Quads'
+    HAMSTRINGS          = 'hamstrings',          'Hamstrings'
+    CALVES              = 'calves',              'Calves'
+    HIP_FLEXORS         = 'hip_flexors',         'Hip Flexors'
+    ADDUCTORS           = 'adductors',           'Adductors'
+    ABDUCTORS           = 'abductors',           'Abductors'
+    # Specific
+    UPPER_CHEST         = 'upper_chest',         'Upper Chest'
+    LOWER_CHEST         = 'lower_chest',         'Lower Chest'
+    LATS                = 'lats',                'Lats'
+    TRAPS               = 'traps',               'Traps'
+    RHOMBOIDS           = 'rhomboids',           'Rhomboids'
+    LOWER_BACK          = 'lower_back',          'Lower Back'
+    FRONT_DELTS         = 'front_delts',         'Front Delts'
+    SIDE_DELTS          = 'side_delts',          'Side Delts'
+    REAR_DELTS          = 'rear_delts',          'Rear Delts'
+    BICEPS              = 'biceps',              'Biceps'
+    TRICEPS             = 'triceps',             'Triceps'
+    FOREARMS            = 'forearms',            'Forearms'
+    GLUTE_MAX           = 'glute_max',           'Glute Max'
+    GLUTE_MED           = 'glute_med',           'Glute Med'
+    GASTROCNEMIUS       = 'gastrocnemius',       'Gastrocnemius'
+    SOLEUS              = 'soleus',              'Soleus'
+    RECTUS_ABDOMINIS    = 'rectus_abdominis',    'Rectus Abdominis'
+    OBLIQUES            = 'obliques',            'Obliques'
+    TRANSVERSE_ABDOMINIS = 'transverse_abdominis', 'Transverse Abdominis'
+
+
 class Movement(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200, blank=False)
     category = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
+    resistance_type = models.CharField(max_length=20, blank=True, choices=ResistanceType.choices)
+    body_part = models.CharField(max_length=25, blank=True, choices=BodyPart.choices)
     created_timestamp = models.DateTimeField(auto_now_add=True)
     updated_timestamp = models.DateTimeField(auto_now=True)
 
