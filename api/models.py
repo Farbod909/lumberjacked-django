@@ -35,6 +35,19 @@ class Workout(models.Model):
     def __str__(self):
         return "Workout (date: %s, user: %s)" % (self.start_timestamp.date(), self.user)
     
+class MovementLogTemplate(models.Model):
+    id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
+    author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    name = models.CharField(max_length=200, blank=False)
+    movement = models.ForeignKey('Movement', null=True, blank=True, on_delete=models.SET_NULL, related_name='templates')
+    # Each element: {reps: str ("5" or "8-10"), type: "warmup"|"working"|"failure"|"myoreps", rest_time: int|null}
+    # Structure is enforced by TemplateSetSerializer.
+    sets = models.JSONField(default=list)
+
+    def __str__(self):
+        return "MovementLogTemplate (name: %s, user: %s)" % (self.name, self.author)
+
+
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     movement = models.ForeignKey(Movement, on_delete=models.CASCADE, related_name='movement_logs')

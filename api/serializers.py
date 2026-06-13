@@ -4,8 +4,9 @@ from django.db.models import (
 )
 
 from django.db.models.functions import JSONObject
+import re
 from rest_framework import serializers
-from .models import Movement, MovementLog, Workout, SET_TYPE_CHOICES
+from .models import Movement, MovementLog, MovementLogTemplate, Workout, SET_TYPE_CHOICES
 
 
 class SetSerializer(serializers.Serializer):
@@ -169,3 +170,43 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Cannot remove movements that have associated movement logs.")
 
         return attrs
+
+
+class TemplateSetSerializer(serializers.Serializer):
+    reps = serializers.CharField()
+    type = serializers.ChoiceField(choices=SET_TYPE_CHOICES)
+    rest_time = serializers.IntegerField(min_value=0, required=False, allow_null=True)
+
+    def validate_reps(self, value):
+        if re.fullmatch(r'\d+', value):
+            if int(value) < 1:
+                raise serializers.ValidationError("Reps must be at least 1.")
+        elif re.fullmatch(r'\d+-\d+', value):
+            low, high = value.split('-')
+            if int(low) < 1:
+                raise serializers.ValidationError("Reps range minimum must be at least 1.")
+            if int(low) >= int(high):
+                raise serializers.ValidationError("Reps range minimum must be less than maximum.")
+        else:
+            raise serializers.ValidationError('Must be a number (e.g. "5") or range (e.g. "8-10").')
+        return value
+
+
+class MovementLogTemplateSerializer(serializers.ModelSerializer):
+    sets = TemplateSetSerializer(many=True)
+
+    class Meta:
+        model = MovementLogTemplate
+        fields = ['id', 'author', 'name', 'movement', 'sets']
+        read_only_fields = ['id', 'author']
+
+    def validate_sets(self, value):
+        if len(value) == 0:
+            raise serializers.ValidationError("At least one set is required.")
+        return value
+
+    def validate_movement(self, value):
+        request = self.context.get('request')
+        if value is not None and value.author != request.user:
+            raise serializers.ValidationError("Movement is not owned by the authenticated user.")
+        return value

@@ -8,7 +8,7 @@ from rest_framework import status
 from unittest import mock
 from urllib.parse import urlencode
 
-from .models import Movement, MovementLog, Workout
+from .models import Movement, MovementLog, MovementLogTemplate, Workout
 from authn.models import User
 
 class MovementTests(APITestCase):
@@ -619,3 +619,182 @@ class MovementLogTests(APITestCase):
         url = reverse('movement-log-detail', kwargs={'id': 123})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class MovementLogTemplateTests(APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="test@example.com", password="password")
+        cls.movement = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
+        cls.template = MovementLogTemplate.objects.create(
+            author=cls.user,
+            name="Squat 5x5",
+            movement=cls.movement,
+            sets=[{'reps': '5', 'type': 'working', 'rest_time': 180}],
+        )
+        cls.list_url = reverse('movement-log-template-list')
+        cls.list_url_with_movement = f"{cls.list_url}?movement={cls.movement.id}"
+        cls.detail_url = reverse('movement-log-template-detail', kwargs={'id': cls.template.id})
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
+
+    def tearDown(self):
+        self.client.force_authenticate(user=None)
+
+    def test_authentication_requirements(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.post(self.list_url, data={}).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.put(self.detail_url, data={}).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.delete(self.detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_templates(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['name'], 'Squat 5x5')
+
+    def test_list_templates_alt_user_sees_none(self):
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 0)
+
+    def test_list_templates_filter_by_movement(self):
+        other_movement = Movement.objects.create(name="Bench Press", category="Chest", author=self.user)
+        MovementLogTemplate.objects.create(
+            author=self.user, name="Generic", sets=[{'reps': '8-10', 'type': 'working'}])
+        MovementLogTemplate.objects.create(
+            author=self.user, name="Bench Hypertrophy", movement=other_movement,
+            sets=[{'reps': '8-10', 'type': 'working'}])
+
+        response = self.client.get(self.list_url_with_movement)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['name'], 'Squat 5x5')
+
+    def test_create_template_with_movement(self):
+        data = {
+            'name': 'Squat 3x8',
+            'movement': self.movement.id,
+            'sets': [{'reps': '8', 'type': 'working', 'rest_time': 120}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['author'], self.user.id)
+        self.assertEqual(response.data['movement'], self.movement.id)
+
+    def test_create_generic_template_without_movement(self):
+        data = {
+            'name': 'Generic Hypertrophy',
+            'sets': [{'reps': '8-12', 'type': 'working', 'rest_time': 90}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data['movement'])
+
+    def test_create_template_with_movement_not_owned_fails(self):
+        alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
+        alt_movement = Movement.objects.create(name="Deadlift", category="Back", author=alt_user)
+        data = {
+            'name': 'Deadlift 5x5',
+            'movement': alt_movement.id,
+            'sets': [{'reps': '5', 'type': 'working'}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_template_empty_sets_fails(self):
+        data = {'name': 'Empty', 'sets': []}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_retrieve_template(self):
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Squat 5x5')
+        self.assertEqual(response.data['sets'], [{'reps': '5', 'type': 'working', 'rest_time': 180}])
+
+    def test_retrieve_template_alt_user_fails(self):
+        alt_user = User.objects.create_user(email="alt3@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_nonexistent_template_fails(self):
+        url = reverse('movement-log-template-detail', kwargs={'id': 123})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_template(self):
+        data = {
+            'name': 'Squat 5x5 Updated',
+            'movement': self.movement.id,
+            'sets': [{'reps': '5', 'type': 'working', 'rest_time': 180}],
+        }
+        response = self.client.put(self.detail_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Squat 5x5 Updated')
+
+    def test_partial_update_template(self):
+        response = self.client.patch(self.detail_url, {'name': 'Squat 5x5 Patched'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Squat 5x5 Patched')
+
+    def test_delete_template(self):
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.data['count'], 0)
+
+    def test_delete_nonexistent_template_fails(self):
+        url = reverse('movement-log-template-detail', kwargs={'id': 123})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_template_alt_user_fails(self):
+        alt_user = User.objects.create_user(email="alt4@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # Reps field validation
+
+    def test_reps_single_number_valid(self):
+        data = {'name': 'T', 'sets': [{'reps': '5', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_reps_range_valid(self):
+        data = {'name': 'T', 'sets': [{'reps': '8-10', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_reps_invalid_string_fails(self):
+        data = {'name': 'T', 'sets': [{'reps': 'abc', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reps_range_min_equals_max_fails(self):
+        data = {'name': 'T', 'sets': [{'reps': '8-8', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reps_range_min_greater_than_max_fails(self):
+        data = {'name': 'T', 'sets': [{'reps': '10-8', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reps_zero_fails(self):
+        data = {'name': 'T', 'sets': [{'reps': '0', 'type': 'working'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_set_type_fails(self):
+        data = {'name': 'T', 'sets': [{'reps': '5', 'type': 'invalid'}]}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

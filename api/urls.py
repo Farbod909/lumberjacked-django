@@ -13,6 +13,8 @@ urlpatterns = [
     path('workouts/<int:id>/', views.WorkoutDetail.as_view(), name='workout-detail'),
     path('workouts/<int:id>/end/', views.WorkoutEnd.as_view(), name='workout-end'),
     path('workouts/current/', views.WorkoutCurrent.as_view(), name='workout-current'),
+    path('movement-log-templates/', views.MovementLogTemplateList.as_view(), name='movement-log-template-list'),
+    path('movement-log-templates/<int:id>/', views.MovementLogTemplateDetail.as_view(), name='movement-log-template-detail'),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
