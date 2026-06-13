@@ -17,35 +17,33 @@ class MovementTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
                 mock.Mock(return_value=datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def setUpTestData(cls):
-        cls.user_email = "test@example.com"
-        cls.user_password = "password"
-        cls.user = User.objects.create_user(email=cls.user_email, password=cls.user_password)
-        
+        cls.user = User.objects.create_user(email="test@example.com", password="password")
+
         movement_data = {'name': 'Squat', 'category': 'Legs', 'author': cls.user}
         cls.movement = Movement.objects.create(**movement_data)
-        
+
         cls.list_url = reverse('movement-list')
         cls.detail_url = reverse('movement-detail', kwargs={'id': cls.movement.id})
 
     def setUp(self):
-        self.client.login(email=self.user_email, password=self.user_password)
+        self.client.force_authenticate(user=self.user)
 
     def tearDown(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
 
     def test_authentication_requirements(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get(self.list_url).status_code,
                         status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self.client.post(self.list_url, data={'name': 'Bench Press'}).status_code,
                         status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(self.client.get(self.detail_url).status_code, 
+        self.assertEqual(self.client.get(self.detail_url).status_code,
                         status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(self.client.put(self.detail_url, data={'name': 'Squat'}).status_code, 
+        self.assertEqual(self.client.put(self.detail_url, data={'name': 'Squat'}).status_code,
                         status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(self.client.patch(self.detail_url, data={'name': 'Deadlift'}).status_code, 
+        self.assertEqual(self.client.patch(self.detail_url, data={'name': 'Deadlift'}).status_code,
                         status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(self.client.delete(self.detail_url).status_code, 
+        self.assertEqual(self.client.delete(self.detail_url).status_code,
                         status.HTTP_401_UNAUTHORIZED)
 
     def test_list_movements(self):
@@ -59,13 +57,9 @@ class MovementTests(APITestCase):
             datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc))
         
     def test_list_movements_alt_user(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
-        
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
@@ -101,13 +95,9 @@ class MovementTests(APITestCase):
         self.assertEqual(response.data['category'], "Legs")
 
     def test_retrieve_movement_alt_user_fails(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
-        
+        alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -185,9 +175,7 @@ class WorkoutTests(APITestCase):
     @mock.patch('django.utils.timezone.now',
                 mock.Mock(return_value=datetime.datetime(2020, 3, 12, 0, 0, 0, tzinfo=pytz.utc)))
     def setUpTestData(cls):
-        cls.user_email = "test@example.com"
-        cls.user_password = "password"
-        cls.user = User.objects.create_user(email=cls.user_email, password=cls.user_password)
+        cls.user = User.objects.create_user(email="test@example.com", password="password")
 
         cls.movement1 = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
         cls.movement2 = Movement.objects.create(name="Bench Press", category="Chest", author=cls.user)
@@ -205,13 +193,13 @@ class WorkoutTests(APITestCase):
         cls.current_url = reverse('workout-current')
 
     def setUp(self):
-        self.client.login(email=self.user_email, password=self.user_password)
+        self.client.force_authenticate(user=self.user)
 
     def tearDown(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
 
     def test_authentication_requirements(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self.client.post(self.list_url, data={}).status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
@@ -229,13 +217,9 @@ class WorkoutTests(APITestCase):
             [self.movement1.id, self.movement2.id])
         
     def test_list_workouts_alt_user(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
-        
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
@@ -255,13 +239,9 @@ class WorkoutTests(APITestCase):
         ))
 
     def test_retrieve_workout_alt_user_fails(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
-        
+        alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -407,9 +387,7 @@ class MovementLogTests(APITestCase):
         with mock.patch('django.utils.timezone.now', return_value=mock_now):
             MovementLog._meta.get_field('timestamp').default = timezone.now
 
-            cls.user_email = "test@example.com"
-            cls.user_password = "password"
-            cls.user = User.objects.create_user(email=cls.user_email, password=cls.user_password)
+            cls.user = User.objects.create_user(email="test@example.com", password="password")
 
             cls.movement1 = Movement.objects.create(name="Squat", category="Legs", author=cls.user)
             cls.movement2 = Movement.objects.create(name="Bench Press", category="Chest", author=cls.user)
@@ -436,13 +414,13 @@ class MovementLogTests(APITestCase):
 
 
     def setUp(self):
-        self.client.login(email=self.user_email, password=self.user_password)
+        self.client.force_authenticate(user=self.user)
 
     def tearDown(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
 
     def test_authentication_requirements(self):
-        self.client.logout()
+        self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self.client.post(self.list_url, data={}).status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
@@ -458,12 +436,8 @@ class MovementLogTests(APITestCase):
         self.assertCountEqual(response_movement_log_movement_ids, expected_movement_log_movement_ids)
 
     def test_list_movement_logs_alt_user(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
 
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -556,13 +530,9 @@ class MovementLogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_retrieve_movement_log_alt_user(self):
-        self.client.logout()
-        self.alt_user_email = "alt@example.com"
-        self.alt_user_password = "altpassword"
-        self.alt_user = User.objects.create_user(
-            email=self.alt_user_email, password=self.alt_user_password)
-        self.client.login(email=self.alt_user_email, password=self.alt_user_password)
-        
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
