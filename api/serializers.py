@@ -1,6 +1,10 @@
 import re
 from rest_framework import serializers
-from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement, SET_TYPE_CHOICES
+from .models import (
+    Movement, MovementLog, MovementLogTemplate,
+    Workout, WorkoutMovement, WorkoutTemplate, WorkoutTemplateMovement,
+    SET_TYPE_CHOICES,
+)
 
 
 class SetSerializer(serializers.Serializer):
@@ -174,11 +178,14 @@ class WorkoutMovementWithLatestLogSerializer(serializers.ModelSerializer):
 
 class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
     movements = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+    template = serializers.PrimaryKeyRelatedField(
+        queryset=WorkoutTemplate.objects.all(), write_only=True, required=False, allow_null=True
+    )
     movements_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Workout
-        fields = ['id', 'user', 'movements', 'movements_details', 'start_timestamp', 'end_timestamp']
+        fields = ['id', 'user', 'movements', 'template', 'movements_details', 'start_timestamp', 'end_timestamp']
         read_only_fields = ['id', 'user', 'movements_details', 'start_timestamp', 'end_timestamp']
 
     def get_movements_details(self, obj):
@@ -186,9 +193,25 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
         return WorkoutMovementWithRecordedLogSerializer(wms, many=True, context=self.context).data
 
     def validate(self, attrs):
+        # Mutual exclusion of template and movements
+        if attrs.get('template') and attrs.get('movements'):
+            raise serializers.ValidationError(
+                "Provide either template or movements, not both."
+            )
+
         if self.instance is None:
+            # Validate template movements are still owned by the user
+            template = attrs.get('template')
+            if template:
+                request = self.context.get('request')
+                for tm in template.template_movements.select_related('movement').order_by('order'):
+                    if not Movement.objects.filter(id=tm.movement_id, author=request.user).exists():
+                        raise serializers.ValidationError(
+                            {"template": f"Movement '{tm.movement.name}' no longer exists or is not owned by you."}
+                        )
             return attrs
 
+        # Update only: prevent removing movements with logs
         new_movement_ids = attrs.get('movements')
         if new_movement_ids is None:
             return attrs
@@ -206,13 +229,26 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        template = validated_data.pop('template', None)
         movement_ids = validated_data.pop('movements', [])
         workout = super().create(validated_data)
-        for order, movement_id in enumerate(movement_ids):
-            WorkoutMovement.objects.create(workout=workout, movement_id=movement_id, order=order)
+
+        if template:
+            for tm in template.template_movements.select_related('movement', 'movement_log_template').order_by('order'):
+                WorkoutMovement.objects.create(
+                    workout=workout,
+                    movement=tm.movement,
+                    template=tm.movement_log_template,
+                    order=tm.order,
+                )
+        else:
+            for order, movement_id in enumerate(movement_ids):
+                WorkoutMovement.objects.create(workout=workout, movement_id=movement_id, order=order)
+
         return workout
 
     def update(self, instance, validated_data):
+        validated_data.pop('template', None)
         movement_ids = validated_data.pop('movements', None)
         instance = super().update(instance, validated_data)
 
@@ -244,3 +280,132 @@ class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
     def get_movements_details(self, obj):
         wms = obj.workout_movements.select_related('movement', 'template', 'movement_log').order_by('order')
         return WorkoutMovementWithLatestLogSerializer(wms, many=True, context=self.context).data
+
+
+class WorkoutTemplateMovementItemSerializer(serializers.Serializer):
+    """Write-only serializer for each movement item in a WorkoutTemplate."""
+    movement = serializers.PrimaryKeyRelatedField(queryset=Movement.objects.all())
+    movement_log_template = serializers.PrimaryKeyRelatedField(
+        queryset=MovementLogTemplate.objects.all(), required=False, allow_null=True
+    )
+
+
+class WorkoutTemplateMovementSerializer(serializers.ModelSerializer):
+    """Read-only serializer showing movement + template details within a WorkoutTemplate."""
+    movement_detail = MovementSerializer(source='movement', read_only=True)
+    movement_log_template_detail = MovementLogTemplateSerializer(source='movement_log_template', read_only=True)
+
+    class Meta:
+        model = WorkoutTemplateMovement
+        fields = [
+            'id', 'movement', 'movement_detail',
+            'movement_log_template', 'movement_log_template_detail',
+            'order',
+        ]
+        read_only_fields = fields
+
+
+class WorkoutTemplateSerializer(serializers.ModelSerializer):
+    movements = WorkoutTemplateMovementItemSerializer(many=True, write_only=True, required=False)
+    source_workout = serializers.PrimaryKeyRelatedField(
+        queryset=Workout.objects.all(), write_only=True, required=False, allow_null=True
+    )
+    movements_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkoutTemplate
+        fields = [
+            'id', 'author', 'name', 'source_workout', 'movements',
+            'movements_details', 'created_timestamp', 'updated_timestamp',
+        ]
+        read_only_fields = ['id', 'author', 'movements_details', 'created_timestamp', 'updated_timestamp']
+
+    def get_movements_details(self, obj):
+        wms = obj.template_movements.select_related('movement', 'movement_log_template').order_by('order')
+        return WorkoutTemplateMovementSerializer(wms, many=True, context=self.context).data
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        source_workout = attrs.get('source_workout')
+        movements = attrs.get('movements')
+
+        if self.instance is None:
+            if source_workout and movements is not None:
+                raise serializers.ValidationError(
+                    "Provide either source_workout or movements, not both."
+                )
+            if source_workout is None and movements is None:
+                raise serializers.ValidationError(
+                    "Either source_workout or movements must be provided."
+                )
+
+        if source_workout and source_workout.user != request.user:
+            raise serializers.ValidationError(
+                {"source_workout": "Workout is not owned by the authenticated user."}
+            )
+
+        name = attrs.get('name')
+        if name:
+            qs = WorkoutTemplate.objects.filter(author=request.user, name=name)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"name": "A template with this name already exists."}
+                )
+
+        if movements:
+            for item in movements:
+                movement = item['movement']
+                if movement.author != request.user:
+                    raise serializers.ValidationError(
+                        {"movements": f"Movement '{movement.name}' is not owned by the authenticated user."}
+                    )
+                mlt = item.get('movement_log_template')
+                if mlt and mlt.author != request.user:
+                    raise serializers.ValidationError(
+                        {"movements": f"Movement log template '{mlt.name}' is not owned by the authenticated user."}
+                    )
+
+        return attrs
+
+    def create(self, validated_data):
+        source_workout = validated_data.pop('source_workout', None)
+        movements_data = validated_data.pop('movements', None)
+        template = super().create(validated_data)
+
+        if source_workout:
+            for wm in source_workout.workout_movements.select_related('movement', 'template').order_by('order'):
+                WorkoutTemplateMovement.objects.create(
+                    template=template,
+                    movement=wm.movement,
+                    movement_log_template=wm.template,
+                    order=wm.order,
+                )
+        else:
+            for order, item in enumerate(movements_data):
+                WorkoutTemplateMovement.objects.create(
+                    template=template,
+                    movement=item['movement'],
+                    movement_log_template=item.get('movement_log_template'),
+                    order=order,
+                )
+
+        return template
+
+    def update(self, instance, validated_data):
+        validated_data.pop('source_workout', None)
+        movements_data = validated_data.pop('movements', None)
+        instance = super().update(instance, validated_data)
+
+        if movements_data is not None:
+            instance.template_movements.all().delete()
+            for order, item in enumerate(movements_data):
+                WorkoutTemplateMovement.objects.create(
+                    template=instance,
+                    movement=item['movement'],
+                    movement_log_template=item.get('movement_log_template'),
+                    order=order,
+                )
+
+        return instance

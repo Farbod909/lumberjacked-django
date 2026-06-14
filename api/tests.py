@@ -8,7 +8,7 @@ from rest_framework import status
 from unittest import mock
 from urllib.parse import urlencode
 
-from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement
+from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement, WorkoutTemplate, WorkoutTemplateMovement
 from authn.models import User
 
 
@@ -855,3 +855,362 @@ class MovementLogTemplateTests(APITestCase):
         data = {'name': 'T', 'sets': [{'reps': '5', 'type': 'invalid'}]}
         response = self.client.post(self.list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class WorkoutTemplateTests(APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="test@example.com", password="password")
+        cls.movement1 = Movement.objects.create(name="Squat", author=cls.user)
+        cls.movement2 = Movement.objects.create(name="Bench Press", author=cls.user)
+        cls.mlt1 = MovementLogTemplate.objects.create(
+            author=cls.user, name="Squat 5x5", movement=cls.movement1,
+            sets=[{'reps': '5', 'type': 'working', 'rest_time': 300}])
+        cls.mlt2 = MovementLogTemplate.objects.create(
+            author=cls.user, name="Bench 4x8", movement=cls.movement2,
+            sets=[{'reps': '8-10', 'type': 'working', 'rest_time': 180}])
+
+        # A finished workout with movements and templates assigned
+        cls.past_workout = Workout.objects.create(user=cls.user)
+        cls.past_wm1 = WorkoutMovement.objects.create(
+            workout=cls.past_workout, movement=cls.movement1, template=cls.mlt1, order=0)
+        cls.past_wm2 = WorkoutMovement.objects.create(
+            workout=cls.past_workout, movement=cls.movement2, template=cls.mlt2, order=1)
+        MovementLog.objects.create(
+            workout_movement=cls.past_wm1,
+            sets=[{'reps': 5, 'load': 100.0, 'type': 'working', 'rest_time': 300}])
+        cls.past_workout.end_timestamp = timezone.now()
+        cls.past_workout.save()
+
+        cls.list_url = reverse('workout-template-list')
+        cls.workout_list_url = reverse('workout-list')
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
+
+    def tearDown(self):
+        self.client.force_authenticate(user=None)
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
+
+    def test_authentication_requirements(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Auth Test")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        detail_url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.post(self.list_url, {}).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.get(detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.patch(detail_url, {}).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.delete(detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # ── List ──────────────────────────────────────────────────────────────────
+
+    def test_list_templates_empty(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 0)
+
+    def test_list_templates(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="My Template")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['name'], 'My Template')
+
+    def test_list_templates_alt_user_sees_none(self):
+        WorkoutTemplate.objects.create(author=self.user, name="Private Template")
+        alt_user = User.objects.create_user(email="alt@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.data['count'], 0)
+
+    # ── Create from scratch ───────────────────────────────────────────────────
+
+    def test_create_template_from_scratch(self):
+        data = {
+            'name': 'Push Day',
+            'movements': [
+                {'movement': self.movement1.id, 'movement_log_template': None},
+                {'movement': self.movement2.id, 'movement_log_template': None},
+            ],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'Push Day')
+        self.assertEqual(len(response.data['movements_details']), 2)
+        self.assertEqual(response.data['movements_details'][0]['movement'], self.movement1.id)
+        self.assertEqual(response.data['movements_details'][1]['movement'], self.movement2.id)
+        self.assertIsNone(response.data['movements_details'][0]['movement_log_template'])
+
+    def test_create_template_from_scratch_with_movement_log_templates(self):
+        data = {
+            'name': 'Push Day With Templates',
+            'movements': [
+                {'movement': self.movement1.id, 'movement_log_template': self.mlt1.id},
+                {'movement': self.movement2.id, 'movement_log_template': self.mlt2.id},
+            ],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['movements_details'][0]['movement_log_template'], self.mlt1.id)
+        self.assertEqual(response.data['movements_details'][1]['movement_log_template'], self.mlt2.id)
+
+    def test_create_template_order_preserved(self):
+        data = {
+            'name': 'Order Test',
+            'movements': [
+                {'movement': self.movement2.id, 'movement_log_template': None},
+                {'movement': self.movement1.id, 'movement_log_template': None},
+            ],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        details = response.data['movements_details']
+        self.assertEqual(details[0]['movement'], self.movement2.id)
+        self.assertEqual(details[1]['movement'], self.movement1.id)
+
+    # ── Create from source_workout ────────────────────────────────────────────
+
+    def test_create_template_from_source_workout(self):
+        data = {'name': 'From Workout', 'source_workout': self.past_workout.id}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'From Workout')
+        details = response.data['movements_details']
+        self.assertEqual(len(details), 2)
+        self.assertEqual(details[0]['movement'], self.movement1.id)
+        self.assertEqual(details[1]['movement'], self.movement2.id)
+
+    def test_create_template_from_source_workout_copies_movement_log_templates(self):
+        data = {'name': 'Copies Templates', 'source_workout': self.past_workout.id}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        details = response.data['movements_details']
+        self.assertEqual(details[0]['movement_log_template'], self.mlt1.id)
+        self.assertEqual(details[1]['movement_log_template'], self.mlt2.id)
+
+    def test_create_template_from_source_workout_preserves_order(self):
+        data = {'name': 'Order From Workout', 'source_workout': self.past_workout.id}
+        response = self.client.post(self.list_url, data, format='json')
+        details = response.data['movements_details']
+        self.assertEqual(details[0]['order'], 0)
+        self.assertEqual(details[1]['order'], 1)
+
+    def test_create_template_source_workout_not_owned_fails(self):
+        alt_user = User.objects.create_user(email="alt2@example.com", password="altpassword")
+        alt_workout = Workout.objects.create(user=alt_user)
+        data = {'name': 'Bad Source', 'source_workout': alt_workout.id}
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ── Validation ────────────────────────────────────────────────────────────
+
+    def test_create_template_name_duplicate_fails(self):
+        WorkoutTemplate.objects.create(author=self.user, name="Duplicate")
+        data = {
+            'name': 'Duplicate',
+            'movements': [{'movement': self.movement1.id, 'movement_log_template': None}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_template_name_duplicate_different_user_succeeds(self):
+        WorkoutTemplate.objects.create(author=self.user, name="Shared Name")
+        alt_user = User.objects.create_user(email="alt3@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        alt_movement = Movement.objects.create(name="Deadlift", author=alt_user)
+        data = {
+            'name': 'Shared Name',
+            'movements': [{'movement': alt_movement.id, 'movement_log_template': None}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_template_both_source_workout_and_movements_fails(self):
+        data = {
+            'name': 'Both',
+            'source_workout': self.past_workout.id,
+            'movements': [{'movement': self.movement1.id, 'movement_log_template': None}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_template_neither_source_workout_nor_movements_fails(self):
+        response = self.client.post(self.list_url, {'name': 'Empty'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_template_movement_not_owned_fails(self):
+        alt_user = User.objects.create_user(email="alt5@example.com", password="altpassword")
+        alt_movement = Movement.objects.create(name="Deadlift", author=alt_user)
+        data = {
+            'name': 'Bad Movement',
+            'movements': [{'movement': alt_movement.id, 'movement_log_template': None}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_template_movement_log_template_not_owned_fails(self):
+        alt_user = User.objects.create_user(email="alt6@example.com", password="altpassword")
+        alt_mlt = MovementLogTemplate.objects.create(
+            author=alt_user, name="Alt Template",
+            sets=[{'reps': '5', 'type': 'working'}])
+        data = {
+            'name': 'Bad MLT',
+            'movements': [{'movement': self.movement1.id, 'movement_log_template': alt_mlt.id}],
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ── Retrieve ──────────────────────────────────────────────────────────────
+
+    def test_retrieve_template(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Retrieve Me")
+        WorkoutTemplateMovement.objects.create(
+            template=wt, movement=self.movement1, movement_log_template=self.mlt1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Retrieve Me')
+        self.assertEqual(len(response.data['movements_details']), 1)
+        self.assertEqual(response.data['movements_details'][0]['movement_log_template'], self.mlt1.id)
+        self.assertIsNotNone(response.data['movements_details'][0]['movement_log_template_detail'])
+
+    def test_retrieve_template_alt_user_fails(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Private")
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        alt_user = User.objects.create_user(email="alt7@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_nonexistent_template_fails(self):
+        url = reverse('workout-template-detail', kwargs={'id': 123})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # ── Update ────────────────────────────────────────────────────────────────
+
+    def test_update_template_name(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Old Name")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        response = self.client.patch(url, {'name': 'New Name'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'New Name')
+
+    def test_update_template_movements(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Update Movements")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        data = {'movements': [
+            {'movement': self.movement2.id, 'movement_log_template': self.mlt2.id},
+        ]}
+        response = self.client.patch(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['movements_details']), 1)
+        self.assertEqual(response.data['movements_details'][0]['movement'], self.movement2.id)
+        self.assertEqual(response.data['movements_details'][0]['movement_log_template'], self.mlt2.id)
+
+    def test_update_template_name_duplicate_fails(self):
+        WorkoutTemplate.objects.create(author=self.user, name="Existing")
+        wt = WorkoutTemplate.objects.create(author=self.user, name="To Rename")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        response = self.client.patch(url, {'name': 'Existing'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_template_same_name_succeeds(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Same Name")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        response = self.client.patch(url, {'name': 'Same Name'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # ── Delete ────────────────────────────────────────────────────────────────
+
+    def test_delete_template(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Delete Me")
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(WorkoutTemplate.objects.filter(id=wt.id).exists())
+
+    def test_delete_template_cascades_movements(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Cascade Test")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        self.client.delete(url)
+        self.assertEqual(WorkoutTemplateMovement.objects.filter(template=wt).count(), 0)
+
+    def test_delete_nonexistent_template_fails(self):
+        url = reverse('workout-template-detail', kwargs={'id': 123})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_template_alt_user_fails(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Protected")
+        url = reverse('workout-template-detail', kwargs={'id': wt.id})
+        alt_user = User.objects.create_user(email="alt8@example.com", password="altpassword")
+        self.client.force_authenticate(user=alt_user)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ── Start workout from template ───────────────────────────────────────────
+
+    def test_start_workout_from_template(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Workout Source")
+        WorkoutTemplateMovement.objects.create(
+            template=wt, movement=self.movement1, movement_log_template=self.mlt1, order=0)
+        WorkoutTemplateMovement.objects.create(
+            template=wt, movement=self.movement2, movement_log_template=None, order=1)
+
+        response = self.client.post(self.workout_list_url, {'template': wt.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        details = response.data['movements_details']
+        self.assertEqual(len(details), 2)
+        self.assertEqual(details[0]['id'], self.movement1.id)
+        self.assertEqual(details[1]['id'], self.movement2.id)
+
+    def test_start_workout_from_template_copies_movement_log_templates(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="With MLTs")
+        WorkoutTemplateMovement.objects.create(
+            template=wt, movement=self.movement1, movement_log_template=self.mlt1, order=0)
+
+        response = self.client.post(self.workout_list_url, {'template': wt.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify via current workout endpoint that template was assigned
+        current = self.client.get(reverse('workout-current')).json()
+        self.assertEqual(current['movements_details'][0]['template']['id'], self.mlt1.id)
+
+    def test_start_workout_from_template_movement_not_owned_fails(self):
+        alt_user = User.objects.create_user(email="alt9@example.com", password="altpassword")
+        alt_movement = Movement.objects.create(name="Deadlift", author=alt_user)
+
+        # Bypass serializer validation to create a template with an unowned movement
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Bad Template")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=alt_movement, order=0)
+
+        response = self.client.post(self.workout_list_url, {'template': wt.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_start_workout_with_template_and_movements_fails(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Conflict")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=0)
+        data = {'template': wt.id, 'movements': [self.movement1.id]}
+        response = self.client.post(self.workout_list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_start_workout_from_template_preserves_order(self):
+        wt = WorkoutTemplate.objects.create(author=self.user, name="Order Check")
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement2, order=0)
+        WorkoutTemplateMovement.objects.create(template=wt, movement=self.movement1, order=1)
+
+        response = self.client.post(self.workout_list_url, {'template': wt.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        details = response.data['movements_details']
+        self.assertEqual(details[0]['id'], self.movement2.id)
+        self.assertEqual(details[1]['id'], self.movement1.id)

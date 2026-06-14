@@ -103,6 +103,34 @@ class MovementLogTemplate(models.Model):
         return "MovementLogTemplate (name: %s, user: %s)" % (self.name, self.author)
 
 
+class WorkoutTemplate(models.Model):
+    id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
+    author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    name = models.CharField(max_length=200, blank=False)
+    created_timestamp = models.DateTimeField(auto_now_add=True)
+    updated_timestamp = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('author', 'name')]
+
+    def __str__(self):
+        return "WorkoutTemplate (name: %s, user: %s)" % (self.name, self.author)
+
+
+class WorkoutTemplateMovement(models.Model):
+    id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
+    template = models.ForeignKey(WorkoutTemplate, on_delete=models.CASCADE, related_name='template_movements')
+    movement = models.ForeignKey(Movement, on_delete=models.CASCADE)
+    movement_log_template = models.ForeignKey(MovementLogTemplate, null=True, blank=True, on_delete=models.SET_NULL)
+    order = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return "WorkoutTemplateMovement (movement: %s, template: %s, order: %s)" % (self.movement, self.template, self.order)
+
+
 class WorkoutMovement(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name='workout_movements')

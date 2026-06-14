@@ -20,3 +20,7 @@ class IsWorkoutMovementOwner(permissions.BasePermission):
 class IsMovementLogTemplateOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         return obj.author == request.user
+
+class IsWorkoutTemplateOwner(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return obj.author == request.user

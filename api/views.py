@@ -8,15 +8,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement
+from .models import Movement, MovementLog, MovementLogTemplate, Workout, WorkoutMovement, WorkoutTemplate
 from .permissions import (
     IsMovementOwner, IsMovementLogOwner, IsMovementLogTemplateOwner,
-    IsWorkoutOwner, IsWorkoutMovementOwner,
+    IsWorkoutOwner, IsWorkoutMovementOwner, IsWorkoutTemplateOwner,
 )
 from .serializers import (
     MovementSerializer, MovementLogSerializer,
     MovementLogTemplateSerializer,
     WorkoutSerializer, WorkoutMovementSerializer,
+    WorkoutTemplateSerializer,
     WorkoutWithLatestLogsSerializer, WorkoutWithRecordedLogsSerializer,
 )
 
@@ -166,6 +167,26 @@ class WorkoutCurrent(APIView):
 
         workout_serializer = WorkoutWithLatestLogsSerializer(workout)
         return Response(workout_serializer.data)
+
+
+class WorkoutTemplateList(generics.ListCreateAPIView):
+    serializer_class = WorkoutTemplateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return WorkoutTemplate.objects.filter(author=self.request.user).order_by('name')
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class WorkoutTemplateDetail(generics.RetrieveUpdateDestroyAPIView):
+    lookup_field = 'id'
+    serializer_class = WorkoutTemplateSerializer
+    permission_classes = [IsAuthenticated, IsWorkoutTemplateOwner]
+
+    def get_queryset(self):
+        return WorkoutTemplate.objects.all()
 
 
 class MovementLogTemplateList(generics.ListCreateAPIView):

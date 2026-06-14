@@ -15,6 +15,8 @@ urlpatterns = [
     path('workouts/current/', views.WorkoutCurrent.as_view(), name='workout-current'),
     path('workout-movements/', views.WorkoutMovementList.as_view(), name='workout-movement-list'),
     path('workout-movements/<int:id>/', views.WorkoutMovementDetail.as_view(), name='workout-movement-detail'),
+    path('workout-templates/', views.WorkoutTemplateList.as_view(), name='workout-template-list'),
+    path('workout-templates/<int:id>/', views.WorkoutTemplateDetail.as_view(), name='workout-template-detail'),
     path('movement-log-templates/', views.MovementLogTemplateList.as_view(), name='movement-log-template-list'),
     path('movement-log-templates/<int:id>/', views.MovementLogTemplateDetail.as_view(), name='movement-log-template-detail'),
 ]
