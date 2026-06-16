@@ -8,7 +8,7 @@ from .models import (
 
 
 class SetSerializer(serializers.Serializer):
-    reps = serializers.IntegerField(min_value=0)
+    reps = serializers.IntegerField(min_value=1)
     load = serializers.FloatField(required=False, allow_null=True)
     type = serializers.ChoiceField(choices=SET_TYPE_CHOICES)
     rest_time = serializers.IntegerField(min_value=0, required=False, allow_null=True)
