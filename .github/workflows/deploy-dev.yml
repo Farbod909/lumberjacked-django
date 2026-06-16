@@ -3,6 +3,7 @@ name: Deploy to dev environment
 on: workflow_dispatch
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   PROJECT_ID: lumberjacked
   GAR_LOCATION: us-west2
   SERVICE: lumberjacked-dev-2
@@ -40,6 +41,8 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |-
