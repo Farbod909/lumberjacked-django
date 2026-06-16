@@ -186,7 +186,7 @@ class WorkoutWithRecordedLogsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workout
         fields = ['id', 'user', 'movements', 'template', 'movements_details', 'start_timestamp', 'end_timestamp']
-        read_only_fields = ['id', 'user', 'movements_details', 'start_timestamp', 'end_timestamp']
+        read_only_fields = ['id', 'user', 'movements_details']
 
     def get_movements_details(self, obj):
         wms = obj.workout_movements.all()

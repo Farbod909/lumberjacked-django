@@ -83,7 +83,7 @@ class Movement(models.Model):
 class Workout(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     user = models.ForeignKey(User, null=True, on_delete=models.CASCADE)
-    start_timestamp = models.DateTimeField(auto_now_add=True)
+    start_timestamp = models.DateTimeField(default=timezone.now)
     end_timestamp = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
