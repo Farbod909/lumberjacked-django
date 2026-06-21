@@ -70,11 +70,13 @@ class LatestMovementLogSerializer(serializers.ModelSerializer):
 
 
 class TemplateSetSerializer(serializers.Serializer):
-    reps = serializers.CharField()
+    reps = serializers.CharField(required=False, allow_null=True)
     type = serializers.ChoiceField(choices=SET_TYPE_CHOICES)
     rest_time = serializers.IntegerField(min_value=0, required=False, allow_null=True)
 
     def validate_reps(self, value):
+        if value is None:
+            return value
         if re.fullmatch(r'\d+', value):
             if int(value) < 1:
                 raise serializers.ValidationError("Reps must be at least 1.")
@@ -285,9 +287,7 @@ class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
 class WorkoutTemplateMovementItemSerializer(serializers.Serializer):
     """Write-only serializer for each movement item in a WorkoutTemplate."""
     movement = serializers.PrimaryKeyRelatedField(queryset=Movement.objects.all())
-    movement_log_template = serializers.PrimaryKeyRelatedField(
-        queryset=MovementLogTemplate.objects.all(), required=False, allow_null=True
-    )
+    sets = TemplateSetSerializer(many=True, required=False)
 
 
 class WorkoutTemplateMovementSerializer(serializers.ModelSerializer):
@@ -361,11 +361,6 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {"movements": f"Movement '{movement.name}' is not owned by the authenticated user."}
                     )
-                mlt = item.get('movement_log_template')
-                if mlt and mlt.author != request.user:
-                    raise serializers.ValidationError(
-                        {"movements": f"Movement log template '{mlt.name}' is not owned by the authenticated user."}
-                    )
 
         return attrs
 
@@ -383,11 +378,24 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
                     order=wm.order,
                 )
         else:
+            request = self.context.get('request')
             for order, item in enumerate(movements_data):
+                movement = item['movement']
+                sets_data = item.get('sets')
+
+                movement_log_template = None
+                if sets_data:
+                    movement_log_template = MovementLogTemplate.objects.create(
+                        author=request.user,
+                        name=f"{movement.name} Template",
+                        movement=movement,
+                        sets=[{'reps': s.get('reps'), 'type': s['type'], 'rest_time': s.get('rest_time')} for s in sets_data],
+                    )
+
                 WorkoutTemplateMovement.objects.create(
                     template=template,
-                    movement=item['movement'],
-                    movement_log_template=item.get('movement_log_template'),
+                    movement=movement,
+                    movement_log_template=movement_log_template,
                     order=order,
                 )
 
@@ -399,13 +407,67 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
 
         if movements_data is not None:
-            instance.template_movements.all().delete()
+            request = self.context.get('request')
+
+            existing_wtms = {
+                wtm.movement_id: wtm
+                for wtm in instance.template_movements.select_related('movement_log_template').all()
+            }
+            new_movement_ids = {item['movement'].id for item in movements_data}
+
+            for movement_id, wtm in existing_wtms.items():
+                if movement_id not in new_movement_ids:
+                    mlt = wtm.movement_log_template
+                    wtm.delete()
+                    if mlt:
+                        still_used = WorkoutTemplateMovement.objects.filter(
+                            movement_log_template=mlt
+                        ).exists()
+                        if not still_used:
+                            mlt.delete()
+
             for order, item in enumerate(movements_data):
-                WorkoutTemplateMovement.objects.create(
-                    template=instance,
-                    movement=item['movement'],
-                    movement_log_template=item.get('movement_log_template'),
-                    order=order,
-                )
+                movement = item['movement']
+                sets_data = item.get('sets')
+                existing_wtm = existing_wtms.get(movement.id)
+
+                if sets_data:
+                    sets_json = [
+                        {'reps': s.get('reps'), 'type': s['type'], 'rest_time': s.get('rest_time')}
+                        for s in sets_data
+                    ]
+                    if existing_wtm and existing_wtm.movement_log_template:
+                        mlt = existing_wtm.movement_log_template
+                        mlt.sets = sets_json
+                        mlt.save(update_fields=['sets'])
+                        movement_log_template = mlt
+                    else:
+                        movement_log_template = MovementLogTemplate.objects.create(
+                            author=request.user,
+                            name=f"{movement.name} Template",
+                            movement=movement,
+                            sets=sets_json,
+                        )
+                else:
+                    movement_log_template = None
+                    if existing_wtm and existing_wtm.movement_log_template:
+                        mlt = existing_wtm.movement_log_template
+                        still_used = WorkoutTemplateMovement.objects.filter(
+                            movement_log_template=mlt
+                        ).exclude(id=existing_wtm.id).exists()
+                        if not still_used:
+                            mlt.delete()
+
+                if existing_wtm:
+                    existing_wtm.movement_log_template = movement_log_template
+                    existing_wtm.order = order
+                    existing_wtm.save(update_fields=['movement_log_template', 'order'])
+                else:
+                    WorkoutTemplateMovement.objects.create(
+                        template=instance,
+                        movement=movement,
+                        movement_log_template=movement_log_template,
+                        order=order,
+                    )
 
         return instance
