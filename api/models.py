@@ -4,7 +4,7 @@ from django.utils import timezone
 from authn.models import User
 from lumberjacked.utils import generate_id
 
-SET_TYPE_CHOICES = ['warmup', 'working', 'failure', 'myoreps']
+SET_TYPE_CHOICES = ['warmup', 'working', 'dropset', 'failure', 'myoreps']
 
 
 class ResistanceType(models.TextChoices):
@@ -95,7 +95,7 @@ class MovementLogTemplate(models.Model):
     author = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200, blank=False)
     movement = models.ForeignKey('Movement', null=True, blank=True, on_delete=models.SET_NULL, related_name='templates')
-    # Each element: {reps: str ("5" or "8-10"), type: "warmup"|"working"|"failure"|"myoreps", rest_time: int|null}
+    # Each element: {reps: str ("5" or "8-10"), type: "warmup"|"working"|"failure"|"myoreps"|"dropset", rest_time: int|null}
     # Structure is enforced by TemplateSetSerializer.
     sets = models.JSONField(default=list)
 
@@ -148,7 +148,7 @@ class WorkoutMovement(models.Model):
 class MovementLog(models.Model):
     id = models.PositiveBigIntegerField(default=generate_id, primary_key=True, editable=False)
     workout_movement = models.OneToOneField(WorkoutMovement, on_delete=models.CASCADE, related_name='movement_log')
-    # Each element: {reps: int, load: float|null, type: "warmup"|"working"|"failure"|"myoreps", rest_time: int|null}
+    # Each element: {reps: int, load: float|null, type: "warmup"|"working"|"failure"|"myoreps"|"dropset", rest_time: int|null}
     # Structure is enforced by SetSerializer.
     sets = models.JSONField(default=list)
     notes = models.TextField(blank=True)
