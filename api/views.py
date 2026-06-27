@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -27,9 +28,14 @@ _WORKOUT_MOVEMENTS_PREFETCH = Prefetch(
 )
 
 
+class _MovementPagination(PageNumberPagination):
+    page_size = 1000
+
+
 class MovementList(generics.ListCreateAPIView):
     serializer_class = MovementSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = _MovementPagination
 
     def get_queryset(self):
         return Movement.objects.filter(author=self.request.user).order_by('name')
