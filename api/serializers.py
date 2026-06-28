@@ -24,6 +24,15 @@ class MovementSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'author', 'created_timestamp', 'updated_timestamp']
 
+    def validate_name(self, value):
+        request = self.context.get('request')
+        qs = Movement.objects.filter(author=request.user, name=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A movement with this name already exists.")
+        return value
+
 
 class MovementLogSerializer(serializers.ModelSerializer):
     movement_detail = MovementSerializer(source='workout_movement.movement', read_only=True)
