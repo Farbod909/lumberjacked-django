@@ -287,6 +287,9 @@ class WorkoutWithLatestLogsSerializer(serializers.ModelSerializer):
 class WorkoutTemplateMovementItemSerializer(serializers.Serializer):
     """Write-only serializer for each movement item in a WorkoutTemplate."""
     movement = serializers.PrimaryKeyRelatedField(queryset=Movement.objects.all())
+    movement_log_template = serializers.PrimaryKeyRelatedField(
+        queryset=MovementLogTemplate.objects.all(), required=False, allow_null=True
+    )
     sets = TemplateSetSerializer(many=True, required=False)
 
 
@@ -361,6 +364,11 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {"movements": f"Movement '{movement.name}' is not owned by the authenticated user."}
                     )
+                mlt = item.get('movement_log_template')
+                if mlt and mlt.author != request.user:
+                    raise serializers.ValidationError(
+                        {"movements": f"MovementLogTemplate '{mlt.name}' is not owned by the authenticated user."}
+                    )
 
         return attrs
 
@@ -383,14 +391,17 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
                 movement = item['movement']
                 sets_data = item.get('sets')
 
-                movement_log_template = None
-                if sets_data:
+                if 'movement_log_template' in item:
+                    movement_log_template = item['movement_log_template']
+                elif sets_data:
                     movement_log_template = MovementLogTemplate.objects.create(
                         author=request.user,
                         name=f"{movement.name} Template",
                         movement=movement,
                         sets=[{'reps': s.get('reps'), 'type': s['type'], 'rest_time': s.get('rest_time')} for s in sets_data],
                     )
+                else:
+                    movement_log_template = None
 
                 WorkoutTemplateMovement.objects.create(
                     template=template,
@@ -431,7 +442,16 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
                 sets_data = item.get('sets')
                 existing_wtm = existing_wtms.get(movement.id)
 
-                if sets_data:
+                if 'movement_log_template' in item:
+                    movement_log_template = item['movement_log_template']
+                    if existing_wtm and existing_wtm.movement_log_template and existing_wtm.movement_log_template != movement_log_template:
+                        old_mlt = existing_wtm.movement_log_template
+                        still_used = WorkoutTemplateMovement.objects.filter(
+                            movement_log_template=old_mlt
+                        ).exclude(id=existing_wtm.id).exists()
+                        if not still_used:
+                            old_mlt.delete()
+                elif sets_data:
                     sets_json = [
                         {'reps': s.get('reps'), 'type': s['type'], 'rest_time': s.get('rest_time')}
                         for s in sets_data
